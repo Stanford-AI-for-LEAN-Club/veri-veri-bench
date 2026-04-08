@@ -2,6 +2,31 @@ import Imp.parser
 
 namespace Imp
 
+-- (x+2) * (y-3) + 1
+-- AST:
+--                  (+)
+--                 /   \
+--               (*)    1
+--              /   \
+--            (+)   (-)
+--           /  \   /  \
+--          x    2 y    3
+def _simple_arith_example: Aexp :=
+  Aexp.add (Aexp.mul (Aexp.add (Aexp.var "x") (Aexp.const 2)) (Aexp.sub (Aexp.var "y") (Aexp.const 3))) (Aexp.const 1)
+
+-- x := 0; i := 1; while (i <= n) do {x := (x + i); i := (i + 1)}; n := 0; i := 0
+-- AST:
+--                       (;)
+--                      /   \
+--                x := 0    (;)
+--                         /   \
+--                   i := 1    (;)
+--                            /   \
+--                    while(i<=n)  (;)
+--                        |       /   \
+--                       (;)  n := 0  i := 0
+--                      /   \
+--               x := x+i  i := i+1
 def my_program : String :=
   "x := 0; i := 1; while (i <= n) do {x := (x + i); i := (i + 1)}; n := 0; i := 0"
 
