@@ -38,8 +38,8 @@ def eval (σ : State) : Aexp → ℤ
   | const n => n
   | var X => σ X
   | add a b => eval σ a + eval σ b
-  | sub a b => eval σ a + eval σ b
-  | mul a b => eval σ a + eval σ b
+  | sub a b => eval σ a - eval σ b
+  | mul a b => eval σ a * eval σ b
 
 def equiv (a b : Aexp) : Prop := ∀ (σ : State), eval σ a = eval σ b
 
