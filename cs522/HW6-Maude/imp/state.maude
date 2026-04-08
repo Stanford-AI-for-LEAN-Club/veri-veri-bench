@@ -1,0 +1,23 @@
+mod STATE is including PL-INT + PL-ID .
+  sort State .
+
+  op _|->_ : List{Id} Int -> State [prec 0] .
+  op .State : -> State .
+  op _&_ : State State -> State [assoc comm id: .State format(d s s d)] .
+
+  op _(_) : State Id -> Int [prec 0] .          --- lookup
+  op _[_/_] : State Int Id -> State [prec 0] .  --- update
+
+  var Sigma : State .  var I I' : Int .  var X X' : Id .  var Xl : List{Id} .
+
+  eq X |-> undefined = .State .                 --- "undefine" a variable in a state
+
+  eq (Sigma & X |-> I)(X) = I .
+  eq Sigma(X) = undefined [owise] .
+
+  eq (Sigma &  X |-> I)[I' / X ] = (Sigma & X |-> I') .
+  eq Sigma[I / X] = (Sigma & X |-> I) [owise] .
+
+  eq (X,X',Xl) |-> I = X |-> I & X' |-> I & Xl |-> I .
+  eq .List{Id} |-> I = .State .
+endm

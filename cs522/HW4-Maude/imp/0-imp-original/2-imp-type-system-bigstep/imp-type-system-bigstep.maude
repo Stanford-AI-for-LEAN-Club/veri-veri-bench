@@ -1,0 +1,19 @@
+in ../../../builtins.maude
+in ../imp-syntax.maude
+
+in imp-type-system-semantics-bigstep
+
+in ../imp-programs.maude
+
+mod TEST is including IMP-TYPE-SYSTEM-BIGSTEP + IMP-PROGRAMS .  endm
+
+rewrite < sumPgm > .
+rewrite < collatzStmt, (n,q,r,s) > .
+rewrite < collatzPgm > .
+rewrite < multiplicationStmt, (x,y,q,r,z) > .
+rewrite < primalityStmt, (n,i,q,r,t,x,y,z) > .
+rewrite < countPrimesPgm > .
+
+search < sumPgm > =>! Cfg:Configuration .
+
+quit

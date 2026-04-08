@@ -1,0 +1,20 @@
+in ../../../builtins.maude
+in ../imp-syntax.maude
+in ../../state.maude
+
+in imp-semantics-bigstep
+
+in ../imp-programs.maude
+
+mod TEST is including IMP-SEMANTICS-BIGSTEP + IMP-PROGRAMS .  endm
+
+rewrite < sumPgm > .
+rewrite < collatzStmt, n |-> 10 & (q,r,s) |-> 0 > .
+rewrite < collatzPgm > .
+rewrite < multiplicationStmt, x |-> 25 & y |-> 5 & (q,r,z) |-> 0 > .
+rewrite < primalityStmt, n |-> 1021 & (i,q,r,t,x,y,z) |-> 0 > .
+rewrite < countPrimesPgm > .
+
+search < sumPgm > =>! Cfg:Configuration .
+
+quit

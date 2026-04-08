@@ -1,0 +1,22 @@
+mod IMP-SYNTAX is including PL-INT + PL-BOOL + PL-ID .
+--- AExp
+  sort AExp .  subsorts Int Id < AExp .
+  op _+_ : AExp AExp -> AExp [prec 33 gather (E e) format (d b o d)] .
+  op _/_ : AExp AExp -> AExp [prec 31 gather (E e) format (d b o d)] .
+--- BExp
+  sort BExp .  subsort Bool < BExp .
+  op _<=_ : AExp AExp -> BExp  [prec 37 format (d b o d)] .
+  op !_ : BExp -> BExp [prec 53 format (b o d)] .
+  op _&&_ : BExp BExp -> BExp [prec 55 gather (E e) format (d b o d)] .
+--- Block and Stmt
+  sorts Block Stmt .  subsort Block < Stmt .
+  op {} : -> Block [format (b b o)] .
+  op {_} : Stmt -> Block [format (d n++i n--i d)] .
+  op _=_; : Id AExp -> Stmt [prec 40 format (d b o b o)] .
+  op __ : Stmt Stmt -> Stmt [prec 60 gather (e E) format (d ni d)] .
+  op if(_)_else_ : BExp Block Block -> Stmt [prec 59 format (b so d d s nib o d)] .
+  op while(_)_ : BExp Block -> Stmt [prec 59 format (b so d d s d)] .
+--- Pgm
+  sort Pgm .
+  op int_;_ : List{Id} Stmt -> Pgm [prec 70 format (nb o d ni d)] .
+endm
