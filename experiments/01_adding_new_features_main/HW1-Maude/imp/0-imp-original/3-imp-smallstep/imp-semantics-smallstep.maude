@@ -1,0 +1,56 @@
+mod IMP-CONFIGURATIONS-SMALLSTEP is including IMP-SYNTAX + STATE .
+  sorts Configuration ExtendedConfiguration .
+  subsort Configuration < ExtendedConfiguration .
+  op <_,_> : AExp State -> Configuration .
+  op <_,_> : BExp State -> Configuration .
+  op <_,_> : Stmt State -> Configuration .
+  op <_> : Pgm -> Configuration .
+  op o_ : Configuration -> ExtendedConfiguration [prec 80] .   --- one step
+  op *_ : Configuration -> ExtendedConfiguration [prec 80] .   --- all steps
+  var Cfg Cfg' : Configuration .
+ crl * Cfg => * Cfg' if o Cfg => Cfg' .
+endm
+
+mod IMP-SEMANTICS-SMALLSTEP is including IMP-CONFIGURATIONS-SMALLSTEP .
+  var X : Id .  var Sigma Sigma' : State .  var I I1 I2 : Int .  var Xl : List{Id} .
+  var A A' A1 A1' A2 A2' : AExp .  var B B' B1 B1' B2 : BExp .  var S S' S1 S1' S2 : Stmt .
+
+ crl o < X,Sigma > => < Sigma(X),Sigma > if Sigma(X) =/=Bool undefined .
+
+ crl o < A1 + A2,Sigma > => < A1' + A2,Sigma > if o < A1,Sigma > => < A1',Sigma > .
+ crl o < A1 + A2,Sigma > => < A1 + A2',Sigma > if o < A2,Sigma > => < A2',Sigma > .
+  rl o < I1 + I2,Sigma > => < I1 +Int I2,Sigma > .
+
+ crl o < A1 / A2,Sigma > => < A1' / A2,Sigma > if o < A1,Sigma > => < A1',Sigma > .
+ crl o < A1 / A2,Sigma > => < A1 / A2',Sigma > if o < A2,Sigma > => < A2',Sigma > .
+ crl o < I1 / I2,Sigma > => < I1 /Int I2,Sigma > if I2 =/=Bool 0 .
+
+ crl o < A1 <= A2,Sigma > => < A1' <= A2,Sigma > if o < A1,Sigma > => < A1',Sigma > .
+ crl o < I1 <= A2,Sigma > => < I1 <= A2',Sigma > if o < A2,Sigma > => < A2',Sigma > .
+  rl o < I1 <= I2,Sigma > => < I1 <=Int I2,Sigma > .
+
+ crl o < ! B,Sigma > => < ! B',Sigma > if o < B,Sigma > => < B',Sigma > .
+  rl o < ! true,Sigma > => < false,Sigma > .
+  rl o < ! false,Sigma > => < true,Sigma > .
+
+ crl o < B1 && B2,Sigma > => < B1' && B2,Sigma > if o < B1,Sigma > => < B1',Sigma > .
+  rl o < false && B2,Sigma > => < false,Sigma > .
+  rl o < true && B2,Sigma > => < B2,Sigma > .
+
+  rl o < {S},Sigma > => < S,Sigma > .
+
+ crl o < X = A ;,Sigma > => < X = A' ;,Sigma > if o < A,Sigma > => < A',Sigma > .
+ crl o < X = I ;,Sigma > => < {},Sigma[I / X] > if Sigma(X) =/=Bool undefined .
+
+ crl o < S1 S2,Sigma > => < S1' S2,Sigma' > if o < S1,Sigma > => < S1',Sigma' > .
+  rl o < {} S2,Sigma > => < S2,Sigma > .
+
+ crl o < if (B) S1 else S2,Sigma > => < if (B') S1 else S2,Sigma >
+  if o < B,Sigma > => < B',Sigma  > .
+  rl o < if (true) S1 else S2,Sigma > => < S1,Sigma > .
+  rl o < if (false) S1 else S2,Sigma > => < S2,Sigma > .
+
+  rl o < while (B) S,Sigma > => < if (B) {S while (B) S} else {},Sigma > .
+
+  rl o < int Xl ; S > => < S,(Xl |-> 0) > .
+endm
