@@ -31,3 +31,23 @@ lake env lean --version # verify the pinned Lean toolchain via Lake
 - **Lean**: `leanprover/lean4:v4.28.0`
 - **Mathlib**: `v4.28.0`
 - Lake project name: `imp`
+
+---
+
+## Mandatory Post-Experiment Protocol
+
+**TRIGGER:** Any time you finish running a script that produces metrics, model outputs, or evaluation results. This fires AUTOMATICALLY — do not skip any step.
+
+1. **W&B Report** — Push metrics AND create a W&B Report (not just a run). Print the Report URL. See `~/agents-config/workflows/expts-and-results.md` for the API template. A logged run alone is NOT sufficient.
+2. **Local results summary** — Save to `results_summary/results_summary_<YYYY-MM-DD__HH-MM-SS>.md` with TL;DR, config table, results table, plots, W&B link.
+3. **QA gating** — Dispatch cross-agent QA per Hard Rule 3 in `~/agents-config/INDEX_RULES.md` before telling the user "done."
+4. **GPU cleanup** — Kill zombie processes, verify GPUs freed, report `nvidia-smi`.
+5. **TLDR** — End your response with `**TLDR:**` (1-2 sentences).
+
+## Mandatory Response Protocol (ALL responses)
+
+These apply to EVERY response, not just experiment completion.
+
+- Every response ends with `**TLDR:**` — no exceptions.
+- When a non-trivial task completes, run QA gating before reporting done.
+- When unsure whether QA gating applies, run it.
