@@ -1,3 +1,35 @@
+/-!
+# IMP — worked example: summing `0 + 1 + ⋯ + n`
+
+This file is a case study that exercises the AST (`Imp/main.lean`) and the
+parser (`Imp/parser.lean`) on a concrete IMP program:
+
+```
+  x := 0;
+  i := 1;
+  while (i <= n) do { x := x + i; i := i + 1 };
+  n := 0;
+  i := 0
+```
+
+starting from a state where `n` holds some natural number and all other
+variables are `0`. The final value of `x` is `∑_{i=0}^{n} i`.
+
+Two top-level theorems are proved:
+
+* `my_program_halts`  — for every `n : ℕ`, the program terminates on
+  `initial_state n`.
+* `my_program_output` — the output state has `x = ∑ i ∈ Finset.range (n+1), i`
+  and `n = i = 0`.
+
+The bulk of the file is a **model of the loop body as a pure state function**
+(`loopStep`, `loopIter`, `loopState`, `loopStart`) plus lemmas that relate this
+model to the big-step semantics (`terminate_loopBody`, `terminate_while_from`,
+`loopIter_x_state`, `loopIter_x_start`). Proving the model matches the
+semantics, and then proving the model computes the sum, keeps the two
+arguments separate.
+-/
+
 import Imp.parser
 
 namespace Imp
@@ -11,10 +43,13 @@ namespace Imp
 --            (+)   (-)
 --           /  \   /  \
 --          x    2 y    3
+/-- Warm-up: the `Aexp` encoding of `(x + 2) * (y - 3) + 1`.
+The ASCII tree above shows its shape. -/
 def _simple_arith_example: Aexp :=
   Aexp.add (Aexp.mul (Aexp.add (Aexp.var "x") (Aexp.const 2)) (Aexp.sub (Aexp.var "y") (Aexp.const 3))) (Aexp.const 1)
 
--- x := 0; i := 1; while (i <= n) do {x := (x + i); i := (i + 1)}; n := 0; i := 0
+--
+-- my_program === (x := 0; i := 1; while (i <= n) do {x := (x + i); i := (i + 1)}; n := 0; i := 0)
 -- AST:
 --                       (;)
 --                      /   \
@@ -27,11 +62,16 @@ def _simple_arith_example: Aexp :=
 --                       (;)  n := 0  i := 0
 --                      /   \
 --               x := x+i  i := i+1
+/-- The summation program as IMP source. Sanity-check the parser by
+comparing `#eval parseComAllStr ["x","i","n"] my_program` against
+`my_compiled_program` below. -/
 def my_program : String :=
   "x := 0; i := 1; while (i <= n) do {x := (x + i); i := (i + 1)}; n := 0; i := 0"
 
 #eval parseComAllStr ["x", "i", "n"] my_program
 
+/-- The same program, hand-written as a `Com` AST. The proofs below operate
+on this AST directly (so they do not depend on the parser being correct). -/
 def my_compiled_program : Com := Imp.Com.comp
   (Imp.Com.assign "x" (Imp.Aexp.const 0)) (Imp.Com.comp (Imp.Com.assign "i" (Imp.Aexp.const 1))
   (Imp.Com.comp (Imp.Com.while (Imp.Bexp.le (Imp.Aexp.var "i") (Imp.Aexp.var "n"))
@@ -39,30 +79,50 @@ def my_compiled_program : Com := Imp.Com.comp
   (Imp.Com.assign "i" (Imp.Aexp.add (Imp.Aexp.var "i") (Imp.Aexp.const 1)))))
   (Imp.Com.comp (Imp.Com.assign "n" (Imp.Aexp.const 0)) (Imp.Com.assign "i" (Imp.Aexp.const 0)))))
 
+/-- The state where every variable is `0`. -/
 def zero_state : State := fun _ => 0
 
+/-- `initial_state n` sets `n ↦ n` on top of `zero_state`; everything else is `0`. -/
 def initial_state (n : ℤ) : State := zero_state.assign "n" n
 
+/-- `final_state x` sets `x ↦ x` on top of `zero_state`; everything else is `0`. -/
 def final_state (x : ℤ) : State := zero_state.assign "x" x
 
+/-- The loop body `x := x + i; i := i + 1`, as a `Com`. -/
 def loopBody : Com :=
   Com.comp
     (Com.assign "x" (Aexp.add (Aexp.var "x") (Aexp.var "i")))
     (Com.assign "i" (Aexp.add (Aexp.var "i") (Aexp.const 1)))
 
+/-- The loop body as a **pure** function on `State` (one iteration):
+`x ← x + i`, then `i ← i + 1`. Related to the big-step semantics of
+`loopBody` by `terminate_loopBody`. -/
 def loopStep (σ : State) : State :=
   let σ1 := σ.assign "x" (Aexp.eval σ (Aexp.add (Aexp.var "x") (Aexp.var "i")))
   σ1.assign "i" (Aexp.eval σ1 (Aexp.add (Aexp.var "i") (Aexp.const 1)))
 
+/-- Apply `loopStep` `k` times. -/
 def loopIter : Nat → State → State
   | 0, σ => σ
   | n + 1, σ => loopIter n (loopStep σ)
 
+/-- Canonical loop state with explicit `n`, `i`, `x`: starts from
+`initial_state n`, then sets `x` and `i`. All other variables stay `0`. -/
 def loopState (n i : Nat) (x : ℤ) : State :=
   ((initial_state (n : ℤ)).assign "x" x).assign "i" (i : ℤ)
 
+/-- The state the `while` loop is entered in for `my_compiled_program`:
+`n ↦ n`, `x ↦ 0`, `i ↦ 1`. -/
 def loopStart (n : Nat) : State :=
   loopState n 1 0
+
+/-!
+### Projections of `loopState` and one-step projections of `loopStep`
+
+Small lemmas reading off a single variable of `loopState n i x` or of
+`loopStep σ`. They are the `simp` glue that lets later inductions work
+one variable at a time.
+-/
 
 lemma loopState_x (n i : Nat) (x : ℤ) : loopState n i x "x" = x := by
   simp [loopState, State.assign]
@@ -82,11 +142,11 @@ lemma loopStep_i (σ : State) : loopStep σ "i" = σ "i" + 1 := by
 lemma loopStep_n (σ : State) : loopStep σ "n" = σ "n" := by
   simp [loopStep, State.assign, Aexp.eval]
 
-lemma loopStep_other (σ : State) {Y : Loc} (hYx : Y ≠ "x") (hYi : Y ≠ "i") :
+lemma loopStep_other (σ : State) {Y : Str} (hYx : Y ≠ "x") (hYi : Y ≠ "i") :
     loopStep σ Y = σ Y := by
   simp [loopStep, State.assign, hYx, hYi]
 
-lemma loopIter_other (k : Nat) (σ : State) {Y : Loc} (hYx : Y ≠ "x") (hYi : Y ≠ "i") :
+lemma loopIter_other (k : Nat) (σ : State) {Y : Str} (hYx : Y ≠ "x") (hYi : Y ≠ "i") :
     loopIter k σ Y = σ Y := by
   induction k generalizing σ with
   | zero =>
@@ -94,6 +154,8 @@ lemma loopIter_other (k : Nat) (σ : State) {Y : Loc} (hYx : Y ≠ "x") (hYi : Y
   | succ k ih =>
       simp [loopIter, loopStep_other (σ:=σ) hYx hYi, ih]
 
+/-- One iteration of the pure model, in closed form: from `loopState n i x`
+the step goes to `loopState n (i+1) (x + i)`. -/
 lemma loopStep_loopState (n i : Nat) (x : ℤ) :
     loopStep (loopState n i x) = loopState n (i + 1) (x + (i : ℤ)) := by
   funext Y
@@ -120,12 +182,24 @@ lemma loopIter_n (k : Nat) (σ : State) :
   | succ k ih =>
       simp [loopIter, loopStep_n, ih]
 
+/-- Bridge from the pure model to the big-step semantics:
+the body `loopBody`, run from `σ`, terminates at `loopStep σ`. -/
 lemma terminate_loopBody (σ : State) :
     Com.terminate σ loopBody (loopStep σ) := by
   dsimp [loopBody, loopStep]
   set σ1 := σ.assign "x" (Aexp.eval σ (Aexp.add (Aexp.var "x") (Aexp.var "i"))) with hσ1
   simp [terminate_comp, σ1]
 
+/-- From `loopState n i x`, the `while (i <= n) do loopBody` loop runs
+exactly `k = n + 1 - i` iterations and terminates at `loopIter k (loopState n i x)`.
+
+Proof is by induction on `k`:
+* `k = 0` : then `i > n`, so the guard evaluates to `false` and the loop
+  exits via `while_false`.
+* `k + 1` : `i ≤ n`, the guard is `true`; we take one step via
+  `terminate_loopBody`, rewrite the resulting state with
+  `loopStep_loopState`, and apply the induction hypothesis at `i + 1`.
+-/
 lemma terminate_while_from (n i k : Nat)
     (x : ℤ)
     (hk : k = n + 1 - i) :
@@ -183,6 +257,8 @@ lemma terminate_while_from (n i k : Nat)
           (τ:=loopIter k (loopStep (loopState n i x)))
           (c:=loopBody) htrue hbody hrec)
 
+/-- Closed form for `"x"` after `k` pure iterations starting from
+`loopState n i x`: the initial `x` plus `∑_{j<k} (i + j)`. -/
 lemma loopIter_x_state (n i k : Nat) (x : ℤ) :
     loopIter k (loopState n i x) "x" =
       x + ∑ j ∈ Finset.range k, ((i + j : Nat) : ℤ) := by
@@ -228,6 +304,8 @@ lemma loopIter_x_state (n i k : Nat) (x : ℤ) :
       -- now reorder additions
       simp [hsum', Int.add_left_comm, Int.add_comm]
 
+/-- Closed form for `"x"` after `k` pure iterations from `loopStart n`:
+`∑ i ∈ Finset.range (k+1), i`. Used at `k = n` to get the final answer. -/
 lemma loopIter_x_start (n : Nat) :
     ∀ k, loopIter k (loopStart n) "x" =
       (∑ i ∈ Finset.range (k + 1), (i : ℤ)) := by
@@ -256,6 +334,12 @@ lemma loopIter_x_start (n : Nat) :
             symm
             simp [Finset.sum_range_succ]
 
+/-- **Main theorem 1.** For every `n : ℕ`, the summation program terminates
+when started from `initial_state n`.
+
+We build an explicit terminating derivation: `σ0 → σ1 → σ2 → σ3 → σ4 → σ5`,
+where `σ3 = loopIter n (loopStart n)` is the state the loop is in after `n`
+iterations (the iterations are delivered by `terminate_while_from`). -/
 theorem my_program_halts (n : ℕ) : Com.halt (some (initial_state n)) my_compiled_program := by
   -- Build a concrete terminating run.
   -- Let σ0 be the initial state, then execute the comp chain.
@@ -287,6 +371,13 @@ theorem my_program_halts (n : ℕ) : Com.halt (some (initial_state n)) my_compil
         · -- i := 0
           simp [σ4, σ5, Aexp.eval]
 
+/-- **Main theorem 2.** The output of the summation program started from
+`initial_state n` is `final_state (∑ i ∈ Finset.range (n+1), i)`, i.e.
+`x = 0 + 1 + ⋯ + n` and `n = i = 0`.
+
+Proof strategy: rebuild the same terminating derivation as in
+`my_program_halts`, then use `terminate_output` plus `terminate_unique` (via
+`loopIter_x_start`) to read off the final value of each variable. -/
 theorem my_program_output (n : ℕ) :
     my_compiled_program.output (initial_state (n : ℤ)) =
       (final_state (∑ i ∈ Finset.range (n + 1), (i : ℤ))) := by
