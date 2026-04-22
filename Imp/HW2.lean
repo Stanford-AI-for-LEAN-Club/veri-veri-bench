@@ -9,9 +9,10 @@ Re-exports HW2's submodules:
 * `Imp.HW2.Syntax`        — IMP AST + `State` + the reserved `errId`
   "silent-failure" flag.
 * `Imp.HW2.Denotational`  — Exercise 83 denotational semantics:
-  `denA / denB / denS / denP`, where `denS` is a total relation and
-  division-by-zero inside a Stmt manifests as `State.markFailed σ` on
-  the output, matching the Maude solution's use of `σ & err |-> 1`.
+  `denA / denB / denS / denP`, where `denA`/`denB` distinguish ordinary
+  values, Ex. 83 `Error`, and plain `undefined`, and only the `Error`
+  cases inside a Stmt manifest as `State.markFailed σ`, matching the
+  Maude solution's use of `σ & err |-> 1`.
 
 Maude source: `brando90/cs522:HW2-Maude/imp/0-imp-original/4-imp-denotational/imp-semantics-denotational.maude`
 (commit [`ca03448`](https://github.com/brando90/cs522/commit/ca03448)

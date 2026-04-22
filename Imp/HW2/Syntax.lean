@@ -7,8 +7,9 @@ silent division-by-zero failure). Mirrors
 
 Note: unlike HW1's small-step port we do **not** need the syntactic
 `errorAr / errorBool / errorStmt` constructors — the HW2 denotational
-solution expresses errors via the *value* domain and a reserved `err`
-flag in `State`, not via syntax. See `Imp/HW2/Denotational.lean`.
+solution expresses Ex. 83's `Error` and the pre-existing `undefined`
+bottom via *result* domains, plus a reserved `err` flag in `State`, not
+via syntax. See `Imp/HW2/Denotational.lean`.
 -/
 
 namespace Imp.HW2
