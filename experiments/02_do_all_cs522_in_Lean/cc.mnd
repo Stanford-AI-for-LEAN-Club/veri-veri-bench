@@ -1,30 +1,41 @@
 ❯ git clone to home my cs522 repo: https://github.com/brando90/cs522 and initialize it with agents agents config etc push to main please
-                                                                                                                                                                                                                                                                            
-  then what I want to do is do all the homeworks for this course correctly in the pdf of 522 and my code that I think already implemented but in lean. So first check that it runs works my original code in maude and add comments so its understandable always
-  correctly. Then push it to main. Then in veri-veri-bench create a PR for each of the hw's and translate it to lean correctly according to PL semantics. Then do a mega qa. Tag stepan to do the verificaiton for all of them please.   
+
+    then what I want to do is do all the homeworks for this course correctly in the pdf of 522 and my code that I think already implemented but in lean. So first check that it runs works my original code in maude and add comments so its understandable always correctly. Then push it to main. Then in veri-veri-bench create a PR for each of the hw's and translate it to lean correctly according to PL semantics. Then do a mega qa. Tag stepan to do the verificaiton for all of them please.
+
+❯ sure! Let's do that. But the difference is -- if HW1 "works" so you do everything I asked and the mega qa the pr merge then you move to hw2 sequentially until all of it is done. Is this clear? I just want everything from cs522 translated to lean correctly. Ultimately we want the real PL semantics of a real full progrmaming language that's the goal of the veri-veri-bench project
+
+❯ [meeting notes pasted — see §"April 21 Lean AI Club meeting notes" below for summary]
+  Do it we want all cs522 solved in lean assigned to stepan in different prs and a better readme so the context of the projec tis clearer ie eventually doing a full semantics of a real PL in lean and fix the issues of veribench (vibe translating) and veribench-dt (only does differential testing)
+  write your plan here /Users/brandomiranda/veri-veri-bench/experiments/02_do_all_cs522_in_Lean/cc.mnd update it with a better claude code prompt.md then a mega qa at the end too.
 
 ---
 
-```
+# Canonical prompt
+The canonical, self-contained prompt for this task lives in `prompt.md` next to this file. That is the file to re-seed a fresh Claude Code session with. This file (`cc.mnd`) is the conversational log only.
 
-  Blockers / clarifications
+# April 21 Lean AI Club meeting — project-relevant summary
 
-  1. Two cs522 sources, different layouts. ~/cs522 (what I just cloned) has HW1-Maude, HW2-Maude, HW3, HW4 + an imp/ folder with increments 0–5. But ~/veri-veri-bench/cs522/ has a different, richer tree: HW1-Maude … HW6-Maude, HW5,
-  Extra-Credit, ProgrammingLangSemantics.pdf, hwN.md specs. Which one is canonical — the GitHub brando90/cs522 repo, or the vvb shadow copy? Should I sync the richer one into brando90/cs522 first so HW specs + PDF live there?
-  2. Maude is not installed on this machine (maude: command not found). I can read/comment the Maude files, but I literally cannot execute them to verify they "run correctly." Options: (a) you install Maude (brew install maude or
-  similar), (b) I skip execution and only do static review + comments, (c) we run Maude via Docker. Which do you want?
-  3. Scope of "translate to Lean correctly per PL semantics". Each HW has 5–7 sub-semantics (bigstep, smallstep, denotational, MSOS, evaluation contexts, CHAM, type system). Do you want all of them translated per HW, or just big-step +
-  small-step? Full translation of all sub-semantics × 4–6 HWs is dozens of Lean modules with nontrivial proofs.
-  4. Mega QA × N PRs. Rule 10 is a 3-stage sequential chain (CC → Codex → Gemini) per PR. With 4–6 PRs that's 12–18 review stages. Confirm you want that, or a single mega QA over the whole batch.
-  5. Stepan handle. The collaborators roster is in ~/ultimate-utils/py_src/uutils/collaborators.py. I'll resolve his GitHub there before tagging — but confirm you mean Stepan Zakharov (most likely given PL/Lean club context) or someone
-  else.
+- **Project thesis.** It is too hard for humans alone to write formal PL semantics for a real programming language. The CS522 tools (big-step, small-step, denotational, CHAM, K) are the right toolbox but have only ever been used on toy languages. Use AI to scale.
+- **vs VariBench.** VariBench LLM-translates Python → Lean. Nothing formal connects the Lean to the Python. Lean proves a mathematical model, not the code. Fix: put the translator *inside* Lean.
+- **vs VariBench-DT.** Adds differential testing on top of LLM translation — better, but still not semantic equivalence.
+- **vs Aeneas.** Deterministic Rust → Lean via LLBC (big-step-ish), but the translator itself is not formally proven correct; output is a Lean program, not an AST + defined operational semantics.
+- **Stepan's action item from the meeting.** Implement the division-by-zero exercise from CS522 HW1 (Exercises 56 & 70). This is exactly HW1 of the sequential port described in `prompt.md`.
+- **Stepan's contact.** Full name: Stepan Nesterov (Степан Нестеров). Email `stepurik@stanford.edu`. GitHub handle not yet in `~/ultimate-utils/py_src/uutils/collaborators.py` — notify via email until resolved.
 
-  My recommendation: carve a Stage 1 = just HW1 (cs522 side: document + static-review Maude → push; vvb side: Lean translation of big-step only → single PR → single QA → tag Stepan). If that lands cleanly we repeat for HW2…HW6. Trying
-  to do all 4–6 HWs in one shot without running Maude and without an agreed semantics scope will produce a lot of unreviewed code fast.
+# Resolved scope decisions
 
-  Tell me: (1) canonical cs522 source? (2) install Maude or skip execution? (3) which semantics to translate? (4) phased vs. all-at-once? (5) Stepan's handle/full name?
+1. **Sequential HW-by-HW.** HW1 end-to-end (document → push cs522 → Lean PR → mega QA → merge → notify Stepan) before starting HW2, through Extra-Credit.
+2. **All sub-semantics.** Translate every semantic style the Maude solution contains (bigstep, smallstep, denotational, type system, CHAM, etc.), not just big-step.
+3. **Two cs522 trees.** `~/cs522` (GitHub) has Brando's solutions; `~/veri-veri-bench/cs522/` has the course PDF + HW specs. Read specs from vvb copy, document/translate solutions from `~/cs522`. Do not merge the two.
+4. **Mega QA chain.** CC → Codex → Gemini (per Rule 10, builder reviews in the middle, Gemini does final clean-eyes pass). One full chain per PR.
+5. **Maude execution.** Docker-based (no brew formula). If Docker daemon is down, fall back to static review with explicit disclosure. Do not silently claim execution.
+6. **Stepan tagging.** Email `stepurik@stanford.edu` (CC `brandojazz@gmail.com`) per PR until GitHub handle is known. When handle lands, also add as GitHub reviewer + update roster.
 
-```
+# Status ledger
 
-❯ sure! Let's do that. But the difference is -- if HW1 "works" so you do everything I asked and the mega qa the pr merge then you move to hw2 sequentially until all of it is done. Is this clear? I just want everything from cs522       
-  translated to lean correctly. Ultimately we want the real PL semantics of a real full progrmaming language that's the goal of the veri-veri-bench project  
+- [x] `~/cs522` cloned + `CLAUDE.md` committed + pushed to `master` (commit `2387fd1`).
+- [x] `~/veri-veri-bench/README.md` rewritten with project thesis + vs-VariBench + vs-Aeneas + roadmap.
+- [x] `prompt.md` (self-contained Claude Code prompt) written alongside this file.
+- [ ] HW1 — in progress.
+- [ ] HW2, HW3, HW4, HW5, HW6, Extra-Credit — pending, blocked on the previous.
+- [ ] Overall final mega QA + Stepan notification email.
