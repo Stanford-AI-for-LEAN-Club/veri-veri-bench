@@ -60,6 +60,13 @@ inductive SConfig where
   | running (s : Stmt) (σ : State) (inB outB : Buffer) : SConfig
   | halting (σ : State) (inB outB : Buffer) : SConfig
 
+/-- Restore the outer binding of a local variable after one body step of
+`let X = I in S`, matching Maude's `Sigma'[Sigma(X) / X]`. -/
+def restoreLocal (σOuter σInner : State) (X : Id) : State :=
+  match σOuter X with
+  | some n => σInner.update X n
+  | none   => σInner.unbind X
+
 /-! ## Arithmetic small-step -/
 
 inductive stepA : Aexp → State → Buffer → AConfig → Prop
@@ -217,9 +224,25 @@ inductive stepS : SConfig → SConfig → Prop
   | let_err_halts {X : Id} {a : Aexp} {s : Stmt} {σ σ' : State} {inB inB' outB : Buffer}
       (h : stepA a σ inB (.error σ' inB')) :
       stepS (.running (.letIn X a s) σ inB outB) (.halting σ' inB' outB)
+  /-- `let X = I in S` — run the body under the local binding, then restore
+  the outer binding in the ambient state while carrying the current local
+  value in the syntax (Maude: `let X = Sigma'(X) in S', Sigma'[Sigma(X)/X]`). -/
+  | let_body {X : Id} {n n' : Int} {s s' : Stmt} {σ σ' : State}
+      {inB inB' outB outB' : Buffer}
+      (h : stepS (.running s (σ.update X n) inB outB) (.running s' σ' inB' outB'))
+      (hX : σ' X = some n') :
+      stepS (.running (.letIn X (.const n) s) σ inB outB)
+        (.running (.letIn X (.const n') s') (restoreLocal σ σ' X) inB' outB')
   /-- `let X = I in skip => skip`. -/
   | let_skip {X : Id} {n : Int} {σ : State} {inB outB : Buffer} :
       stepS (.running (.letIn X (.const n) .skip) σ inB outB) (.running .skip σ inB outB)
+  /-- `let X = I in S` — halting body; restore the outer binding before
+  exposing the halting configuration. -/
+  | let_body_halt {X : Id} {n : Int} {s : Stmt} {σ σ' : State}
+      {inB inB' outB outB' : Buffer}
+      (h : stepS (.running s (σ.update X n) inB outB) (.halting σ' inB' outB')) :
+      stepS (.running (.letIn X (.const n) s) σ inB outB)
+        (.halting (restoreLocal σ σ' X) inB' outB')
   /-- `spawn {S}` — reduce body; see file docstring for the sequential-
   simplification caveat. -/
   | spawn_red {s s' : Stmt} {σ σ' : State} {inB inB' outB outB' : Buffer}
@@ -243,6 +266,8 @@ inductive stepsS : SConfig → SConfig → Prop
 
 section Smoke
 
+private def σxy : State := (State.empty.update "x" 10).update "y" 0
+
 /-- `o < halt; , σ, inB, outB > => < halting, σ, inB, outB >`. -/
 example : stepS (.running .halt State.empty [] []) (.halting State.empty [] []) :=
   stepS.halt
@@ -260,6 +285,49 @@ example :
     stepS (.running (.print (.const 5)) State.empty [] [])
           (.running .skip State.empty [] [5]) :=
   stepS.print_ax
+
+/-- `let` steps its body under the local binding and restores the outer
+state immediately after the step. -/
+example :
+    stepS (.running (.letIn "x" (.const 5) (.assign "y" (.var "x"))) σxy [] [])
+          (.running (.letIn "x" (.const 5) (.assign "y" (.const 5))) σxy [] []) := by
+  have hBody :
+      stepS (.running (.assign "y" (.var "x")) (σxy.update "x" 5) [] [])
+            (.running (.assign "y" (.const 5)) (σxy.update "x" 5) [] []) := by
+    apply stepS.assign_red
+    exact stepA.lookup (σ := σxy.update "x" 5) (X := "x") rfl
+  have hX : (σxy.update "x" 5) "x" = some 5 := by
+    simp [State.update]
+  have hRestore : restoreLocal σxy (σxy.update "x" 5) "x" = σxy := by
+    funext Y
+    by_cases hY : Y = "x"
+    · simp [restoreLocal, State.update, σxy, hY]
+    · simp [restoreLocal, State.update, σxy, hY]
+  simpa [hRestore] using
+    (stepS.let_body (X := "x") (n := 5) (n' := 5)
+      (s := .assign "y" (.var "x")) (s' := .assign "y" (.const 5))
+      (σ := σxy) (σ' := σxy.update "x" 5)
+      (inB := []) (inB' := []) (outB := []) (outB' := [])
+      hBody hX)
+
+/-- `let` restores an undefined outer binding before exposing `halting`. -/
+example :
+    stepS (.running (.letIn "x" (.const 5) .halt) State.empty [] [])
+          (.halting State.empty [] []) := by
+  have hHalt :
+      stepS (.running .halt (State.empty.update "x" 5) [] [])
+            (.halting (State.empty.update "x" 5) [] []) := by
+    simpa using (stepS.halt (σ := State.empty.update "x" 5) (inB := []) (outB := []))
+  have hRestore : restoreLocal State.empty (State.empty.update "x" 5) "x" = State.empty := by
+    funext Y
+    by_cases hY : Y = "x"
+    · simp [restoreLocal, State.empty, State.unbind, hY]
+    · simp [restoreLocal, State.empty, State.update, State.unbind, hY]
+  simpa [hRestore] using
+    (stepS.let_body_halt (X := "x") (n := 5) (s := .halt)
+      (σ := State.empty) (σ' := State.empty.update "x" 5)
+      (inB := []) (inB' := []) (outB := []) (outB' := [])
+      hHalt)
 
 end Smoke
 
