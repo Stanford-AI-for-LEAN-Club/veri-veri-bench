@@ -13,8 +13,8 @@ The Maude configurations carry `(syntax, State, Buffer)` at entry and
 `(halting, State, Buffer_in, Buffer_out)` at exit. In Lean we split the
 result into an `SResult` sum:
 
-- `state σ inB outB`        — normal termination with updated buffers
-- `err   σ inB`             — error result (from div-by-zero inside a Stmt)
+- `state  σ inB outB`       — normal termination with updated buffers
+- `err    σ inB outB`       — statement-level error with buffers frozen in place
 - `halted σ inB outB`       — the `halt;` statement was executed
 
 and similarly for AExp / BExp (which in Maude return just `(Int, State, Buf)`
@@ -32,8 +32,9 @@ or `(error, State, Buf)` — we use `AResult` / `BResult`).
    restoration here; that is easier to model in small-step where block
    entry/exit are explicit points in the reduction.
 
-3. **Error propagation** follows Maude: an arithmetic `error` inside a
-   Stmt produces an `SResult.err` which the SEQ rule short-circuits on.
+3. **Statement-level errors** are kept distinct from `halt;`, but they now
+   freeze both buffers just like other statement results so prior output is
+   not lost during propagation through `SEQ`, `if`, `while`, `print`, or `let`.
 
 4. **Halting propagation**: once the `halt;` statement fires, it produces
    an `SResult.halted` which subsequent Stmts (via SEQ) absorb without
@@ -58,8 +59,9 @@ inductive BResult where
 inductive SResult where
   /-- Normal termination. -/
   | state  : State → Buffer → Buffer → SResult
-  /-- Arithmetic error has propagated up to Stmt level. -/
-  | err    : State → Buffer → SResult
+  /-- Arithmetic / guard error has propagated up to Stmt level; the current
+  state and both buffers are frozen. -/
+  | err    : State → Buffer → Buffer → SResult
   /-- The `halt;` statement was reached. Halting freezes the state and
   both buffers. -/
   | halted : State → Buffer → Buffer → SResult
@@ -81,10 +83,11 @@ inductive evalA : Aexp → State → Buffer → AResult → Prop
   /-- `read()` on an empty input buffer is stuck — we model it as `err`.
   (Maude does not specify; this is a modelling choice flagged in the README.) -/
   | read_err {σ : State} : evalA .read σ [] (.err σ [])
-  /-- Addition — normal. -/
+  /-- Addition — Maude's left-to-right normal rule, including the source
+  side condition on the second value. -/
   | add {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 n2 : Int}
       (h1 : evalA a1 σ inB (.num n1 σ1 inB1))
-      (h2 : evalA a2 σ1 inB1 (.num n2 σ2 inB2)) :
+      (h2 : evalA a2 σ1 inB1 (.num n2 σ2 inB2)) (hne : n2 ≠ 0) :
       evalA (.add a1 a2) σ inB (.num (n1 + n2) σ2 inB2)
   /-- Addition — left errors. -/
   | add_err_l {a1 a2 : Aexp} {σ σ1 : State} {inB inB1 : Buffer}
@@ -94,6 +97,20 @@ inductive evalA : Aexp → State → Buffer → AResult → Prop
   | add_err_r {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 : Int}
       (h1 : evalA a1 σ inB (.num n1 σ1 inB1))
       (h2 : evalA a2 σ1 inB1 (.err σ2 inB2)) :
+      evalA (.add a1 a2) σ inB (.err σ2 inB2)
+  /-- Addition — Maude's symmetric right-to-left rule. -/
+  | add_rtl {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 n2 : Int}
+      (h2 : evalA a2 σ inB (.num n2 σ2 inB2))
+      (h1 : evalA a1 σ2 inB2 (.num n1 σ1 inB1)) :
+      evalA (.add a1 a2) σ inB (.num (n1 + n2) σ1 inB1)
+  /-- Addition — right-to-left, then left operand errors. -/
+  | add_err_l_rtl {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n2 : Int}
+      (h2 : evalA a2 σ inB (.num n2 σ2 inB2))
+      (h1 : evalA a1 σ2 inB2 (.err σ1 inB1)) :
+      evalA (.add a1 a2) σ inB (.err σ1 inB1)
+  /-- Addition — right operand errors when Maude picks the right-to-left rule. -/
+  | add_err_r_rtl {a1 a2 : Aexp} {σ σ2 : State} {inB inB2 : Buffer}
+      (h2 : evalA a2 σ inB (.err σ2 inB2)) :
       evalA (.add a1 a2) σ inB (.err σ2 inB2)
   /-- Division — normal. -/
   | div_ok {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 n2 : Int}
@@ -113,6 +130,29 @@ inductive evalA : Aexp → State → Buffer → AResult → Prop
   | div_err_r {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 : Int}
       (h1 : evalA a1 σ inB (.num n1 σ1 inB1))
       (h2 : evalA a2 σ1 inB1 (.err σ2 inB2)) :
+      evalA (.div a1 a2) σ inB (.err σ2 inB2)
+  /-- Division — Maude's symmetric right-to-left normal rule. -/
+  | div_ok_rtl {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 n2 : Int}
+      (h2 : evalA a2 σ inB (.num n2 σ2 inB2))
+      (h1 : evalA a1 σ2 inB2 (.num n1 σ1 inB1)) (hne : n2 ≠ 0) :
+      evalA (.div a1 a2) σ inB (.num (n1 / n2) σ1 inB1)
+  /-- Division — right-to-left, then left operand errors. -/
+  | div_err_l_rtl {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n2 : Int}
+      (h2 : evalA a2 σ inB (.num n2 σ2 inB2))
+      (h1 : evalA a1 σ2 inB2 (.err σ1 inB1)) :
+      evalA (.div a1 a2) σ inB (.err σ1 inB1)
+  /-- Division — right operand errors when Maude evaluates the divisor first. -/
+  | div_err_r_rtl {a1 a2 : Aexp} {σ σ2 : State} {inB inB2 : Buffer}
+      (h2 : evalA a2 σ inB (.err σ2 inB2)) :
+      evalA (.div a1 a2) σ inB (.err σ2 inB2)
+  /-- Division by zero — right-to-left, then evaluate the numerator anyway. -/
+  | div_by_zero_rtl_after_l {a1 a2 : Aexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer} {n1 : Int}
+      (h2 : evalA a2 σ inB (.num 0 σ2 inB2))
+      (h1 : evalA a1 σ2 inB2 (.num n1 σ1 inB1)) :
+      evalA (.div a1 a2) σ inB (.err σ1 inB1)
+  /-- Division by zero — right-to-left immediate error. -/
+  | div_by_zero_rtl {a1 a2 : Aexp} {σ σ2 : State} {inB inB2 : Buffer}
+      (h2 : evalA a2 σ inB (.num 0 σ2 inB2)) :
       evalA (.div a1 a2) σ inB (.err σ2 inB2)
 
 /-! ## Boolean-expression big-step -/
@@ -154,6 +194,10 @@ inductive evalB : Bexp → State → Buffer → BResult → Prop
   | and_err_l {b1 b2 : Bexp} {σ σ1 : State} {inB inB1 : Buffer}
       (h : evalB b1 σ inB (.err σ1 inB1)) :
       evalB (.and b1 b2) σ inB (.err σ1 inB1)
+  | and_err_r {b1 b2 : Bexp} {σ σ1 σ2 : State} {inB inB1 inB2 : Buffer}
+      (h1 : evalB b1 σ inB (.bool true σ1 inB1))
+      (h2 : evalB b2 σ1 inB1 (.err σ2 inB2)) :
+      evalB (.and b1 b2) σ inB (.err σ2 inB2)
 
 /-! ## Statement big-step
 
@@ -171,17 +215,17 @@ inductive evalS : Stmt → State → Buffer → Buffer → SResult → Prop
       evalS (.assign X a) σ inB outB (.state (σ'.update X n) inB' outB)
   /-- `X = A ;` — RHS errors. -/
   | assign_err {σ σ' : State} {inB inB' outB : Buffer} {X : Id} {a : Aexp}
-      (hA : evalA a σ inB (.err σ' inB')) :
-      evalS (.assign X a) σ inB outB (.err σ' inB')
+      (hDecl : σ X ≠ none) (hA : evalA a σ inB (.err σ' inB')) :
+      evalS (.assign X a) σ inB outB (.err σ' inB' outB)
   /-- `S1 S2` — normal case. -/
   | seq_ok {s1 s2 : Stmt} {σ σ' : State} {inB inB' outB outB' : Buffer} {r : SResult}
       (h1 : evalS s1 σ inB outB (.state σ' inB' outB'))
       (h2 : evalS s2 σ' inB' outB' r) :
       evalS (.seq s1 s2) σ inB outB r
   /-- `S1 S2` — first statement errors; skip S2. -/
-  | seq_err_l {s1 s2 : Stmt} {σ σ' : State} {inB inB' outB : Buffer}
-      (h : evalS s1 σ inB outB (.err σ' inB')) :
-      evalS (.seq s1 s2) σ inB outB (.err σ' inB')
+  | seq_err_l {s1 s2 : Stmt} {σ σ' : State} {inB inB' outB outB' : Buffer}
+      (h : evalS s1 σ inB outB (.err σ' inB' outB')) :
+      evalS (.seq s1 s2) σ inB outB (.err σ' inB' outB')
   /-- `S1 S2` — first statement halts; skip S2 (halt absorbs). -/
   | seq_halted_l {s1 s2 : Stmt} {σ σ' : State} {inB inB' outB outB' : Buffer}
       (h : evalS s1 σ inB outB (.halted σ' inB' outB')) :
@@ -197,7 +241,7 @@ inductive evalS : Stmt → State → Buffer → Buffer → SResult → Prop
   /-- `if (B) …` — guard errors. -/
   | ite_err {b : Bexp} {s1 s2 : Stmt} {σ σ' : State} {inB inB' outB : Buffer}
       (hb : evalB b σ inB (.err σ' inB')) :
-      evalS (.ite b s1 s2) σ inB outB (.err σ' inB')
+      evalS (.ite b s1 s2) σ inB outB (.err σ' inB' outB)
   /-- `while (B) S` — guard false, loop terminates in place. -/
   | while_false {b : Bexp} {s : Stmt} {σ σ' : State} {inB inB' outB : Buffer}
       (hb : evalB b σ inB (.bool false σ' inB')) :
@@ -205,7 +249,7 @@ inductive evalS : Stmt → State → Buffer → Buffer → SResult → Prop
   /-- `while (B) S` — guard errors. -/
   | while_err_guard {b : Bexp} {s : Stmt} {σ σ' : State} {inB inB' outB : Buffer}
       (hb : evalB b σ inB (.err σ' inB')) :
-      evalS (.while b s) σ inB outB (.err σ' inB')
+      evalS (.while b s) σ inB outB (.err σ' inB' outB)
   /-- `while (B) S` — guard true, unroll. Matches Maude's recursive
   `< S while (B) S, Sigma, inB, outB > => < r >`. -/
   | while_true {b : Bexp} {s : Stmt} {σ σ' : State} {inB inB' outB : Buffer} {r : SResult}
@@ -222,7 +266,7 @@ inductive evalS : Stmt → State → Buffer → Buffer → SResult → Prop
   /-- `print(A);` — argument errors. -/
   | print_err {σ σ' : State} {inB inB' outB : Buffer} {a : Aexp}
       (hA : evalA a σ inB (.err σ' inB')) :
-      evalS (.print a) σ inB outB (.err σ' inB')
+      evalS (.print a) σ inB outB (.err σ' inB' outB)
   /-- `int xl;` — declare-and-zero-initialise each variable. Matches the
   Maude desugaring that turns `int xl` into repeated `let X = 0 in ...`. -/
   | intDecl (σ : State) (inB outB : Buffer) (xl : List Id) :
@@ -237,7 +281,7 @@ inductive evalS : Stmt → State → Buffer → Buffer → SResult → Prop
   /-- `let X = A in S` — binding-RHS errors. -/
   | letIn_err {σ σ' : State} {inB inB' outB : Buffer} {X : Id} {a : Aexp} {s : Stmt}
       (hA : evalA a σ inB (.err σ' inB')) :
-      evalS (.letIn X a s) σ inB outB (.err σ' inB')
+      evalS (.letIn X a s) σ inB outB (.err σ' inB' outB)
   /-- `spawn { S }` — executed sequentially in the big-step port (see
   file docstring §"Simplifications"). -/
   | spawn {σ : State} {inB outB : Buffer} {s : Stmt} {r : SResult}
@@ -275,6 +319,29 @@ example :
 example :
     evalA .read State.empty [42, 17] (.num 42 State.empty [17]) :=
   evalA.read_ok
+
+/-- Maude also admits right-to-left division, which matters once `read()`
+threads the input buffer. -/
+example :
+    evalA (.div .read .read) State.empty [4, 2] (.num 0 State.empty []) := by
+  exact evalA.div_ok_rtl evalA.read_ok evalA.read_ok (by decide)
+
+/-- Statement-level errors preserve output already produced by earlier
+statements in a sequence. -/
+example :
+    evalS (.seq (.print (.const 1)) (.print (.div (.const 1) (.const 0))))
+      State.empty [] []
+      (.err State.empty [] [1]) := by
+  refine evalS.seq_ok (σ' := State.empty) (inB' := []) (outB' := [1]) ?_ ?_
+  · simpa [Buffer.snoc] using
+      (evalS.print_ok (σ := State.empty) (σ' := State.empty)
+        (inB := []) (inB' := []) (outB := [])
+        (a := .const 1) (n := 1)
+        (hA := evalA.const 1 State.empty []))
+  · exact evalS.print_err
+      (hA := evalA.div_by_zero
+        (h1 := evalA.const 1 State.empty [])
+        (h2 := evalA.const 0 State.empty []))
 
 end Smoke
 

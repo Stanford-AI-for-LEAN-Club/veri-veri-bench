@@ -41,7 +41,7 @@ Maude's `(State, Buffer_in, Buffer_out)` trio + `<error, …>` and
 
 * `AResult = num Int σ inB | err σ inB`
 * `BResult = bool Bool σ inB | err σ inB`
-* `SResult = state σ inB outB | err σ inB | halted σ inB outB`
+* `SResult = state σ inB outB | err σ inB outB | halted σ inB outB`
 
 ### Honest deviations from Maude (flagged)
 
@@ -51,6 +51,14 @@ Maude's `(State, Buffer_in, Buffer_out)` trio + `<error, …>` and
    Small-step (HW3b) is the natural place for that.
 3. **Empty-input `read()` is `err`** — Maude does not specify; we pick
    `err` for determinism in Lean. Revisit once the small-step port is in.
+
+Non-simplification fidelity notes:
+
+* Statement-level `err` results now carry the current output buffer so a later
+  failure does not erase earlier `print` effects in a sequence.
+* `evalA` includes Maude's alternate right-to-left rules for `+` and `/`, so
+  I/O-sensitive programs such as `read() / read()` admit the same derivations
+  as the reference semantics.
 
 ## Verification status
 
