@@ -1,3 +1,5 @@
+import Mathlib.Tactic
+
 /-!
 # IMP — core syntax and big-step semantics
 
@@ -15,8 +17,6 @@ plus the standard meta-theorems:
   `terminate_while` — inversion/introduction characterisations used as
   `simp` lemmas to drive concrete termination proofs.
 -/
-
-import Mathlib.Tactic
 
 namespace Imp
 
@@ -153,12 +153,12 @@ def equiv (c d : Com) : Prop := ∀ (σ τ : State), terminate σ c τ ↔ termi
 /-- `halt' σ c` : the run of `c` from `σ` terminates in *some* state. -/
 def halt' (σ : State) (c : Com) : Prop := ∃ τ : State, terminate σ c τ
 
+open Classical in
 /-- The output of running `c` from an `Option State`. `none` propagates as
 `none`; from `some σ`, returns `some τ` where `τ` is a `terminate`-successor
 if one exists (via classical choice), else `none`. `terminate_unique` makes
 the chosen `τ` unique up to propositional equality. Noncomputable because of
 `Classical.choose`. -/
-open Classical in
 noncomputable def output (σ' : Option State) (c : Com) : Option State := match σ' with
   | some σ => if p : halt' σ c then some (Classical.choose p) else none
   | none => none
