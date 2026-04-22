@@ -82,6 +82,11 @@ inductive stepA : Aexp → State → Aexp → State → Prop
   | div_axiom {n1 n2 : Int} {σ : State} (hne : n2 ≠ 0) :
       stepA (.div (.const n1) (.const n2)) σ (.const (n1 / n2)) σ
   /-- **Ex. 70 headline rule** — value / 0 reduces to `errorAr`.
+  Small-step axiom requires BOTH operands as Int literals — a genuine
+  difference from big-step's `evalA.div_zero` (which can skip the numerator
+  because big-step collapses the whole term at once). In small-step any
+  non-literal numerator must first reduce via `div_l` / lookup / etc. before
+  this axiom fires — that is what stepwise semantics means.
   Maude: `crl o < I1 / I2, Sigma > => < errorAr, Sigma > if I2 ==Bool 0 .` -/
   | div_by_zero {n1 : Int} {σ : State} :
       stepA (.div (.const n1) (.const 0)) σ .errorAr σ
@@ -183,6 +188,12 @@ inductive stepS : Stmt → State → Stmt → State → Prop
   | while_unfold {b : Bexp} {s : Stmt} {σ : State} :
       stepS (.while b s) σ (.ite b (.seq s (.while b s)) .skip) σ
 
+/-- Program one-step: `stepP p p'`.
+Maude: `rl o < int Xl ; S > => < S, (Xl |-> 0) > .` -/
+inductive stepP : Pgm → Stmt → State → Prop
+  | init {xl : List Id} {s : Stmt} :
+      stepP ⟨xl, s⟩ s (State.initZero xl)
+
 /-! ## Transitive closures — Maude's `*` relation.
 
 Reflexive-transitive closure of each one-step relation. This records the same
@@ -204,6 +215,11 @@ inductive stepsS : Stmt → State → Stmt → State → Prop
   | refl (s : Stmt) (σ : State) : stepsS s σ s σ
   | cons {s s' s'' : Stmt} {σ σ' σ'' : State}
       (h1 : stepS s σ s' σ') (h2 : stepsS s' σ' s'' σ'') : stepsS s σ s'' σ''
+
+/-- Program-level transitive closure: one step to initialize, then many steps of the body. -/
+inductive stepsP : Pgm → Stmt → State → Prop
+  | steps {p : Pgm} {s : Stmt} {σ : State} {s' : Stmt} {σ' : State}
+      (h1 : stepP p s σ) (h2 : stepsS s σ s' σ') : stepsP p s' σ'
 
 /-! ## Smoke tests — mirror `my_tests_small.m` entries. -/
 
