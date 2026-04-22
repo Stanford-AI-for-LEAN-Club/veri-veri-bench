@@ -1,0 +1,4 @@
+❯ git clone to home my cs522 repo: https://github.com/brando90/cs522 and initialize it with agents agents config etc push to main please
+                                                                                                                                                                                                                                                                            
+  then what I want to do is do all the homeworks for this course correctly in the pdf of 522 and my code that I think already implemented but in lean. So first check that it runs works my original code in maude and add comments so its understandable always
+  correctly. Then push it to main. Then in veri-veri-bench create a PR for each of the hw's and translate it to lean correctly according to PL semantics. Then do a mega qa. Tag stepan to do the verificaiton for all of them please.   

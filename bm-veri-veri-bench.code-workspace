@@ -5,6 +5,12 @@
 		},
 		{
 			"path": "../agents-config"
+		},
+		{
+			"path": "../lean-ebm"
+		},
+		{
+			"path": "../agentic-nl-fl-maths"
 		}
 	],
 	"settings": {}
