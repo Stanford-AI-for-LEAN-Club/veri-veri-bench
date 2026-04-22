@@ -1,5 +1,6 @@
 import Imp.HW3.Syntax
 import Imp.HW3.BigStep
+import Imp.HW3.SmallStep
 
 /-!
 # CS522 HW3a — IMP++ aggregate (big-step only)
