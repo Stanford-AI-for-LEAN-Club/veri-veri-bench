@@ -24,10 +24,9 @@ division-by-zero).
 * **Small-step (Ex. 70).** The Maude solution adds syntactic error
   constants `errorAr : -> AExp`, `errorBool : -> BExp`,
   `errorStmt : -> Stmt`. We encode them directly as constructors in
-  `Aexp / Bexp / Stmt` in `Syntax.lean`. The error constants are
-  terminal (no outgoing `step` rule) which makes our `stepsA / stepsB /
-  stepsS` reflexive-transitive closures converge at an error, matching
-  Maude's `rew *` behaviour. The headline rule
+  `Aexp / Bexp / Stmt` in `Syntax.lean`, and we also port Maude's
+  top-level `o < errorX, σ > => < errorX, .State >` sink rules via
+  `stepA.error_sink / stepB.error_sink / stepS.error_sink`. The headline rule
   `o < I1 / 0, σ > => < errorAr, σ >` lives at `stepA.div_by_zero`.
 
 ## Verification status

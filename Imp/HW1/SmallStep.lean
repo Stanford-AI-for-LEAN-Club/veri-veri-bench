@@ -16,11 +16,10 @@ Modelling decisions:
 * Three one-step relations (`stepA`, `stepB`, `stepS`) correspond to Maude's
   `o < _, _ > => < _, _ >` at each sort, per Figures 3.14/3.15 of Grigore
   Roșu's textbook.
-* The Maude small-step rewrite also models an "error sink" under `o_` so
-  that `rew *` converges — we realise it by making `errorAr`/`errorBool`/
-  `errorStmt` *terminal* (no further `step` rules out of them). The
-  transitive-closure `steps*A` below is the reflexive-transitive closure
-  of `stepA`, so runs that reach an error constant terminate there.
+* The Maude small-step rewrite also models a top-level "error sink" under
+  `o_`: `errorAr`/`errorBool`/`errorStmt` rewrite to themselves over
+  `.State`. We port those sink steps directly as `error_sink`
+  constructors, using `State.empty` for Maude's `.State`.
 -/
 
 namespace Imp.HW1.Small
@@ -39,6 +38,8 @@ Note: σ' is rarely different from σ at the `AExp` sort (state changes only
 on assignment), but we keep the pairing for uniformity with the Maude shape.
 -/
 inductive stepA : Aexp → State → Aexp → State → Prop
+  /-- `SmallStep-On-Errors` — top-level arithmetic error sink. -/
+  | error_sink (σ : State) : stepA .errorAr σ .errorAr State.empty
   /-- `SmallStep-Lookup` — defined variable. -/
   | lookup {σ : State} {X : Id} {n : Int}
       (h : σ X = some n) : stepA (.var X) σ (.const n) σ
@@ -87,6 +88,8 @@ inductive stepA : Aexp → State → Aexp → State → Prop
 
 /-- Boolean one-step. -/
 inductive stepB : Bexp → State → Bexp → State → Prop
+  /-- `SmallStep-On-Errors` — top-level boolean error sink. -/
+  | error_sink (σ : State) : stepB .errorBool σ .errorBool State.empty
   /-- `SmallStep-LEQ-ARG` — reduce left arithmetic operand. -/
   | le_l {a1 a1' a2 : Aexp} {σ : State}
       (h : stepA a1 σ a1' σ) (hne : a1' ≠ .errorAr) :
@@ -135,13 +138,15 @@ inductive stepB : Bexp → State → Bexp → State → Prop
 
 /-- Statement one-step. -/
 inductive stepS : Stmt → State → Stmt → State → Prop
+  /-- `SmallStep-On-Errors` — top-level statement error sink. -/
+  | error_sink (σ : State) : stepS .errorStmt σ .errorStmt State.empty
   /-- `SmallStep-Assign` — reduce RHS, success. -/
   | assign_red {X : Id} {a a' : Aexp} {σ : State}
       (h : stepA a σ a' σ) (hne : a' ≠ .errorAr) :
       stepS (.assign X a) σ (.assign X a') σ
   /-- `SmallStep-Assign` — RHS errors. -/
-  | assign_err {X : Id} {a a' : Aexp} {σ : State}
-      (h : stepA a σ a' σ) (he : a' = .errorAr) :
+  | assign_err {X : Id} {a a' : Aexp} {σ σ' : State}
+      (h : stepA a σ a' σ') (he : a' = .errorAr) :
       stepS (.assign X a) σ .errorStmt σ
   /-- `SmallStep-Assign` axiom: `X = I ;` — commits the value. -/
   | assign_axiom {σ : State} {X : Id} {n : Int}
@@ -180,10 +185,10 @@ inductive stepS : Stmt → State → Stmt → State → Prop
 
 /-! ## Transitive closures — Maude's `*` relation.
 
-Reflexive-transitive closure of each one-step relation. Because our error
-constants are terminal (no `stepA`/`stepB`/`stepS` rules out of them),
-these closures naturally halt once an error constant is reached, matching
-the Maude `rew *` convergence behaviour. -/
+Reflexive-transitive closure of each one-step relation. This records the same
+reachability graph induced by the Lean `stepA`/`stepB`/`stepS` rules, including
+the explicit top-level error sinks that reset the state component to
+`State.empty` as in the Maude `o_` relation. -/
 
 inductive stepsA : Aexp → State → Aexp → State → Prop
   | refl (a : Aexp) (σ : State) : stepsA a σ a σ

@@ -71,9 +71,10 @@ inductive evalA : Aexp → State → AVal → Prop
       (h1 : evalA a1 σ (.num n1)) (h2 : evalA a2 σ (.num n2)) (hne : n2 ≠ 0) :
       evalA (.div a1 a2) σ (.num (n1 / n2))
   /-- **Ex. 56 headline rule** — division-by-zero yields `< Error >`.
-  Maude: `crl < A1 / A2 , Sigma > => < Error > if < A2,Sigma > => < 0 > .` -/
-  | div_zero {a1 a2 : Aexp} {σ : State} {n1 : Int}
-      (h1 : evalA a1 σ (.num n1)) (h2 : evalA a2 σ (.num 0)) :
+  Maude does not require the numerator to evaluate first:
+  `crl < A1 / A2 , Sigma > => < Error > if < A2,Sigma > => < 0 > .` -/
+  | div_zero {a1 a2 : Aexp} {σ : State}
+      (h2 : evalA a2 σ (.num 0)) :
       evalA (.div a1 a2) σ .err
   /-- `BigStep-DIV` error propagation (left operand evaluates to Error). -/
   | div_err_l {a1 a2 : Aexp} {σ : State}
@@ -197,7 +198,7 @@ section Smoke
 
 /-- `< 1 / 0 , .State > => < Error >` — canonical div-by-zero. -/
 example : evalA (.div (.const 1) (.const 0)) State.empty .err :=
-  evalA.div_zero (evalA.const 1 _) (evalA.const 0 _)
+  evalA.div_zero (evalA.const 0 _)
 
 /-- `< 6 / 2 , .State > => < 3 >`. -/
 example : evalA (.div (.const 6) (.const 2)) State.empty (.num 3) :=
@@ -205,7 +206,12 @@ example : evalA (.div (.const 6) (.const 2)) State.empty (.num 3) :=
 
 /-- `< 3 + 3 / 0 , .State > => < Error >`. -/
 example : evalA (.add (.const 3) (.div (.const 3) (.const 0))) State.empty .err :=
-  evalA.add_err_r (evalA.div_zero (evalA.const 3 _) (evalA.const 0 _))
+  evalA.add_err_r (evalA.div_zero (evalA.const 0 _))
+
+/-- Maude's div-by-zero rule ignores the numerator entirely, so even an
+undefined numerator still yields `< Error >` once the divisor is `0`. -/
+example : evalA (.div (.var "x") (.const 0)) State.empty .err :=
+  evalA.div_zero (evalA.const 0 _)
 
 end Smoke
 
