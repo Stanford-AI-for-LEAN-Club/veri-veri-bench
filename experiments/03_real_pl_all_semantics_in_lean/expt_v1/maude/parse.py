@@ -76,6 +76,18 @@ def emit_expr(n: ast.AST) -> str:
                 raise SystemExit(UNSUPPORTED + "len() with multiple / keyword args")
             return f"len({emit_expr(n.args[0])})"
         raise SystemExit(UNSUPPORTED + f"call to {ast.dump(n.func)}")
+    if isinstance(n, ast.List):
+        # Python:  [e1, e2, ..., en]   ->   listLit(consE(e1, consE(e2, ..., nilE)))
+        elts = "nilE"
+        for e in reversed(n.elts):
+            elts = f"consE({emit_expr(e)}, {elts})"
+        return f"listLit({elts})"
+    if isinstance(n, ast.Subscript):
+        # Python:  xs[i]   ->   (xs ! i)
+        if not isinstance(n.slice, (ast.Constant, ast.Name, ast.BinOp, ast.Subscript, ast.Compare, ast.UnaryOp, ast.Call)):
+            # ast.Slice (a:b) deferred
+            raise SystemExit(UNSUPPORTED + f"subscript slice {type(n.slice).__name__}")
+        return f"({emit_expr(n.value)} ! {emit_expr(n.slice)})"
     if isinstance(n, ast.Compare):
         if len(n.ops) != 1 or len(n.comparators) != 1:
             raise SystemExit(UNSUPPORTED + "chained comparisons")
@@ -96,17 +108,27 @@ def emit_expr(n: ast.AST) -> str:
 
 def emit_stmt(n: ast.AST) -> str:
     if isinstance(n, ast.Assign):
-        if len(n.targets) != 1 or not isinstance(n.targets[0], ast.Name):
-            raise SystemExit(UNSUPPORTED + "tuple / attribute / subscript assignment")
-        return f"('{n.targets[0].id} := {emit_expr(n.value)})"
+        if len(n.targets) != 1:
+            raise SystemExit(UNSUPPORTED + "multi-target assignment")
+        tgt = n.targets[0]
+        if isinstance(tgt, ast.Name):
+            return f"('{tgt.id} := {emit_expr(n.value)})"
+        if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
+            return f"('{tgt.value.id} [{emit_expr(tgt.slice)}] := {emit_expr(n.value)})"
+        raise SystemExit(UNSUPPORTED + f"assignment target {type(tgt).__name__}")
     if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call):
         c = n.value
         if isinstance(c.func, ast.Name) and c.func.id == "print":
             if len(c.args) != 1 or c.keywords:
                 raise SystemExit(UNSUPPORTED + "print() with multiple / keyword args")
             return f"print({emit_expr(c.args[0])})"
-        # bare expression statement that is a call (e.g. xs.append(x)) handled in cycle 2
-        raise SystemExit(UNSUPPORTED + f"call to {ast.dump(c.func)}")
+        # xs.append(v) — the canonical Python list-mutation idiom
+        if isinstance(c.func, ast.Attribute) and c.func.attr == "append" \
+                and isinstance(c.func.value, ast.Name):
+            if len(c.args) != 1 or c.keywords:
+                raise SystemExit(UNSUPPORTED + "append() with multiple / keyword args")
+            return f"('{c.func.value.id} .append({emit_expr(c.args[0])}))"
+        raise SystemExit(UNSUPPORTED + f"call statement to {ast.dump(c.func)}")
     if isinstance(n, ast.If):
         cond = emit_expr(n.test)
         body = emit_block(n.body)

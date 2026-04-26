@@ -115,7 +115,46 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
   --- ----- len[_] -------------------------------------------
  crl < len(E), Sigma, Out > => < length(S), Out' >
    if < E, Sigma, Out > => < S, Out' > .
-  --- [list / tuple cases of len added in cycles 2 and 8]
+ crl < len(E), Sigma, Out > => < lstLen(L), Out' >
+   if < E, Sigma, Out > => < listV(L), Out' > .
+  vars L L1 L2 : ListObj .
+
+  --- ----- list literal: evaluate elements left-to-right ------
+  op evalElts : ExpList State Out -> Configuration .
+  op <_,_>    : ListObj Out -> Configuration [ctor] .
+  rl  evalElts(nilE, Sigma, Out) => < nil, Out > .
+ crl evalElts(consE(E, EL), Sigma, Out) => < cons(V, L), Out2 >
+   if < E, Sigma, Out > => < V, Out1 >
+   /\ evalElts(EL, Sigma, Out1) => < L, Out2 > .
+
+ crl < listLit(EL), Sigma, Out > => < listV(L), Out' >
+   if evalElts(EL, Sigma, Out) => < L, Out' > .
+  vars EL : ExpList .
+
+  --- ----- list indexing: xs ! i  [Python xs[i]] -----------
+ crl < E1 ! E2, Sigma, Out > => < lstIdx(L, I), Out2 >
+   if < E1, Sigma, Out  > => < listV(L), Out1 >
+   /\ < E2, Sigma, Out1 > => < I, Out2 >
+   /\ I >=Int 0
+   /\ I <Int lstLen(L) .
+  --- [out-of-range indexing is currently stuck; cycle 7 will raise IndexError]
+
+  --- ----- list `+` concat -------------------------------
+ crl < E1 + E2, Sigma, Out > => < listV(lstConcat(L1, L2)), Out2 >
+   if < E1, Sigma, Out  > => < listV(L1), Out1 >
+   /\ < E2, Sigma, Out1 > => < listV(L2), Out2 > .
+
+  --- ----- list `*` repetition: lst * n / n * lst --------
+  op lstRep : ListObj Int -> ListObj .
+  eq lstRep(L, 0) = nil .
+ ceq lstRep(L, I) = lstConcat(L, lstRep(L, I -Int 1)) if I >Int 0 .
+ ceq lstRep(L, I) = nil if I <=Int 0 .
+ crl < E1 * E2, Sigma, Out > => < listV(lstRep(L1, I2)), Out2 >
+   if < E1, Sigma, Out  > => < listV(L1), Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 * E2, Sigma, Out > => < listV(lstRep(L2, I1)), Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < listV(L2), Out2 > .
 
   --- ----- comparison ---------------------------------------
   --- Numeric comparisons.
@@ -204,6 +243,24 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
 
  crl < print(E), Sigma, Out > => < Sigma, Out' :: V >
    if < E, Sigma, Out > => < V, Out' > .
+
+  --- xs.append(v): rebind xs to xs + [v] (pure-value lists; no aliasing in v1)
+ crl < X .append(E), Sigma, Out > => < Sigma[listV(lstAppend(L, V)) / X], Out' >
+   if listV(L) := Sigma(X)
+   /\ < E, Sigma, Out > => < V, Out' > .
+
+  --- xs[i] = v: rebind xs to a copy with element i replaced
+ crl < X [E1] := E2, Sigma, Out > => < Sigma[listV(lstSet(L, I, V)) / X], Out2 >
+   if listV(L) := Sigma(X)
+   /\ < E1, Sigma, Out  > => < I, Out1 >
+   /\ < E2, Sigma, Out1 > => < V, Out2 >
+   /\ I >=Int 0 /\ I <Int lstLen(L) .
+
+  op lstSet : ListObj Int Value -> ListObj .
+  vars Vh Vh' : Value .  vars Lh : ListObj .
+  eq lstSet(cons(Vh', Lh), 0, Vh) = cons(Vh, Lh) .
+ ceq lstSet(cons(Vh', Lh), I, Vh) = cons(Vh', lstSet(Lh, I -Int 1, Vh))
+   if I >Int 0 .
 
  crl < St1 ; St2, Sigma, Out > => < Sigma2, Out2 >
    if < St1, Sigma,  Out  > => < Sigma1, Out1 >

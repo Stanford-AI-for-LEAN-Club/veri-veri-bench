@@ -30,14 +30,25 @@ def main() -> int:
     if not (term.startswith("<") and term.endswith(">")):
         return 3
     inside = term[1:-1].strip()
-    # In pythonlite v1 the state has the shape  'x |-> N & 'y |-> M & …
-    # — note that `|->` contains a literal '>', so a naive bracket-depth
-    # counter underflows.  Each variable in pythonlite gets its own
-    # |-> binding (no IMP-style `(x,y) |-> 0` group bindings), so the
-    # FIRST top-level ',' we see is always the state/out separator.
-    split = inside.find(",")
+    # The configuration is  < state, out >  — strip the outer angle
+    # brackets above, then split state from out at the *outermost*
+    # top-level comma.  Watch out: state can contain commas inside
+    # `cons(_, _)` (cycle 2 list values), `consE(_, _)` (list-literal
+    # nodes), and other constructors with multiple args; out can too.
+    # Use a depth counter on `(` and `)` (and on `[` `]` for sort-kind
+    # forms like `[Int]`); skip any comma at depth > 0.
+    depth = 0
+    split = -1
+    for i, ch in enumerate(inside):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            split = i
+            break
     if split == -1:
-        # No comma — just the state, output buffer is empty .Out.
+        # No top-level comma — just the state, output buffer is empty.
         return 0
     out_str = inside[split + 1:].strip()
     out_str = re.sub(r"\s+", " ", out_str)

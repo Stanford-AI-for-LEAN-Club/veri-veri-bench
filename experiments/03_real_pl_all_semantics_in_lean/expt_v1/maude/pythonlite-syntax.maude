@@ -57,6 +57,18 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
   --- lists in cycle 2, tuples in cycle 8].
   op len(_) : Exp -> Exp [prec 20] .
 
+  --- List expressions [cycle 2].
+  --- We use a fixed-arity "ListLit" wrapper around an ExpList — Maude can't
+  --- give us Python's variadic [e1, …, en] in a single op declaration,
+  --- so we model an ExpList as nil_e / cons_e and the parser builds it.
+  sort ExpList .
+  op nilE  : -> ExpList .
+  op consE : Exp ExpList -> ExpList .
+  op listLit : ExpList -> Exp [prec 20] .       --- [e1, e2, …, en]
+  op _!_     : Exp Exp -> Exp [prec 20] .       --- xs ! i  ==  xs[i]
+  op _++_    : Exp Exp -> Exp [prec 33 gather (E e)] . --- list/string concat sugar (parser uses + still;
+                                                       --- this is unused but reserved for future)
+
   --- Statements [Stmt]
   sort Stmt .
 
@@ -64,6 +76,13 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
   op _:=_        : Id Exp -> Stmt [prec 40] .          --- Python: x = e
   op print(_)    : Exp -> Stmt    [prec 40] .          --- Python: print(e)
   op _;_         : Stmt Stmt -> Stmt [prec 60 gather (e E)] .
+
+  --- xs.append[v] — modeled as a statement that re-binds xs to a longer list.
+  --- Pythonlite v1 lists are by-value, so this also breaks aliasing
+  --- [intentional cycle 2 limitation; cycle 2.5 will introduce a heap].
+  op _.append(_) : Id Exp -> Stmt [prec 40] .
+  --- xs[i] = v — list element assignment.
+  op _[_]:=_     : Id Exp Exp -> Stmt [prec 40] .
 
   op ifelse(_){_}else{_} : Exp Stmt Stmt -> Stmt [prec 59] .
   op while(_){_}         : Exp Stmt -> Stmt       [prec 59] .

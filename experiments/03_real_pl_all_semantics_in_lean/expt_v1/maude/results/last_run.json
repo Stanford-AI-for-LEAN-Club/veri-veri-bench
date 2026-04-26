@@ -1,6 +1,6 @@
 {
-  "total": 11,
-  "pass":  11,
+  "total": 16,
+  "pass":  16,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -13,6 +13,11 @@
     {"name": "08_string_concat", "status": "PASS", "reason": ""},
     {"name": "09_string_len", "status": "PASS", "reason": ""},
     {"name": "10_string_repeat", "status": "PASS", "reason": ""},
-    {"name": "11_truthy_strings", "status": "PASS", "reason": ""}
+    {"name": "11_truthy_strings", "status": "PASS", "reason": ""},
+    {"name": "12_list_basic", "status": "PASS", "reason": ""},
+    {"name": "13_list_sum", "status": "PASS", "reason": ""},
+    {"name": "14_list_concat_repeat", "status": "PASS", "reason": ""},
+    {"name": "15_list_append", "status": "PASS", "reason": ""},
+    {"name": "16_list_subscript_assign", "status": "PASS", "reason": ""}
   ]
 }

@@ -25,6 +25,34 @@ mod PYTHONLITE-VALUES is
 
   op none : -> Value [ctor] .
 
+  --- Lists, modeled by-value [no aliasing in cycle 2; cycle 2.5 will
+  --- introduce a Heap + listRef[Addr] for true Python aliasing].
+  sort ListObj .
+  op nil  : -> ListObj [ctor] .
+  op cons : Value ListObj -> ListObj [ctor] .
+  op listV : ListObj -> Value [ctor] .
+
+  vars Vh Vh' : Value .   vars Lh L1h L2h : ListObj .   vars Ih : Int .
+
+  op lstLen : ListObj -> Int .
+  eq lstLen(nil) = 0 .
+  eq lstLen(cons(Vh, Lh)) = 1 +Int lstLen(Lh) .
+
+  op lstIdx : ListObj Int -> Value .
+  eq lstIdx(cons(Vh, Lh), 0) = Vh .
+ ceq lstIdx(cons(Vh, Lh), Ih) = lstIdx(Lh, Ih -Int 1) if Ih >Int 0 .
+  --- out-of-bounds index: cycle 2 returns none; cycle 7 will surface
+  --- this as an IndexError.
+  eq lstIdx(Lh, Ih) = none [owise] .
+
+  op lstAppend : ListObj Value -> ListObj .
+  eq lstAppend(nil, Vh) = cons(Vh, nil) .
+  eq lstAppend(cons(Vh', Lh), Vh) = cons(Vh', lstAppend(Lh, Vh)) .
+
+  op lstConcat : ListObj ListObj -> ListObj .
+  eq lstConcat(nil, Lh) = Lh .
+  eq lstConcat(cons(Vh, L1h), L2h) = cons(Vh, lstConcat(L1h, L2h)) .
+
   --- "truthy" — Python's bool[v] semantics.
   --- 0, "", False, None are falsy; everything else is truthy.
   --- Used to evaluate boolean contexts [if, while, and, or, not] uniformly
@@ -38,4 +66,6 @@ mod PYTHONLITE-VALUES is
   eq truthy("")        = false .
   eq truthy(S)         = true  [owise] .
   eq truthy(none)      = false .
+  eq truthy(listV(nil))    = false .
+  eq truthy(listV(cons(V:Value, L:ListObj))) = true .
 endm
