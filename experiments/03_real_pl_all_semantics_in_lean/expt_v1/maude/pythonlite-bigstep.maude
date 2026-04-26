@@ -1,0 +1,184 @@
+--- ============================================================
+--- pythonlite-bigstep.maude
+--- ============================================================
+--- Big-step / Kahn-style operational semantics for pythonlite.
+---
+--- Three configuration shapes [mirrors CS522 IMP big-step;
+--- cf. `cs522/HW1-Maude/imp/0-imp-original/1-imp-bigstep/imp-semantics-bigstep.maude`]:
+---
+---   < Exp,  Sigma, Out >  =>  < Int,  Out' >       [expression evaluation]
+---   < Exp,  Sigma, Out >  =>  < Bool, Out' >       [expression evaluation, bool result]
+---   < Stmt, Sigma, Out >  =>  < Sigma',     Out' > [statement evaluation]
+---   < Pgm                >   =>  < Sigma,    Out  > [whole-program: starts from
+---                                                   .State and .Out, returns final
+---                                                   state and output buffer]
+---
+--- Notes vs. CS522 IMP:
+---
+--- [1] Output buffer Out is threaded through every judgment so that
+---     `print[e]` can append.  IMP++ in HW3 does the same with input/output
+---     buffers [`cs522/HW3-Maude/imp/.../big_step/imp-semantics-bigstep.maude`].
+---
+--- [2] Python `and` / `or` are short-circuit.  We encode that directly
+---     by giving two rules per operator: one for the early-exit case
+---     [left operand decides], one for the right-eval case.
+---
+--- [3] Python `//` is floor division [rounds toward -inf], unlike
+---     Maude's built-in `_/Int_` which truncates toward 0.  We define
+---     `floorDiv` below and use it in the `_//_` rule.
+---     Same story for `%`: Python uses floored modulo, the result has
+---     the sign of the divisor; Maude uses truncated `_rem_`.
+---
+--- [4] Division-by-zero: in Python this raises `ZeroDivisionError`
+---     and halts the program.  v1 of pythonlite does NOT model
+---     exceptions; we instead leave division-by-zero "stuck" — the
+---     rewrite simply does not apply, so the configuration does not
+---     reduce to a final form.  A v2 should add a third Stmt-level
+---     judgment shape `< error, Sigma, Out >` mirroring HW1 Ex. 56
+---     [see `cs522/HW1-Maude/hw1.md`].
+--- ============================================================
+
+mod PYTHONLITE-CONFIGURATIONS-BIGSTEP is
+  including PYTHONLITE-SYNTAX + PYTHONLITE-STATE + PYTHONLITE-OUT .
+  sort Configuration .
+  --- expression configurations (Int- and Bool-result)
+  op <_,_,_> : Exp State Out -> Configuration .
+  op <_,_>   : Int Out  -> Configuration [ctor] .
+  op <_,_>   : Bool Out -> Configuration [ctor] .
+  --- statement configurations
+  op <_,_,_> : Stmt State Out -> Configuration .
+  op <_,_>   : State Out -> Configuration [ctor] .
+  --- whole-program (starts from empty state + empty output)
+  op <_>     : Pgm -> Configuration .
+endm
+
+mod PYTHONLITE-FLOORDIV is including PL-INT .
+  --- Python's floor-div + floor-mod, distinct from Maude's truncating /Int and rem.
+  --- For nonzero b:  a // b  ==  floor(a / b)
+  ---                 a %  b  has the sign of b and  a == (a // b) * b + (a % b)
+  --- Implementation trick: use truncating /Int and adjust by 1 when signs differ
+  --- and the truncating remainder is nonzero.
+  var A B Q R : Int .
+  op floorDiv : Int Int -> [Int] .
+  op floorMod : Int Int -> [Int] .
+  --- We assume callers gate on B =/=Bool 0 (the bigstep rule does this).
+  --- truncDiv / truncMod are Maude's _/Int_ and (a -Int (q *Int b)).
+ ceq floorDiv(A, B)
+   = if (((A <=Int 0) andBool (0 <=Int B)) orBool ((B <=Int 0) andBool (0 <=Int A)))
+        andBool ((A -Int ((A /Int B) *Int B)) =/=Bool 0)
+     then (A /Int B) -Int 1
+     else (A /Int B)
+     fi
+   if B =/=Bool 0 .
+ ceq floorMod(A, B) = A -Int (floorDiv(A, B) *Int B) if B =/=Bool 0 .
+endm
+
+mod PYTHONLITE-SEMANTICS-BIGSTEP is
+  including PYTHONLITE-CONFIGURATIONS-BIGSTEP + PYTHONLITE-FLOORDIV .
+
+  vars X : Id .
+  vars Sigma Sigma' Sigma1 Sigma2 : State .
+  vars Out Out1 Out2 Out3 Out' : Out .
+  vars I I1 I2 : Int .
+  vars T T1 T2 : Bool .
+  vars E E1 E2 : Exp .
+  vars S S1 S2 : Stmt .
+
+  --- ----- expressions: integer literals, variable lookup -----
+  rl < I,    Sigma, Out > => < I, Out > .
+ crl < X,    Sigma, Out > => < Sigma(X), Out >
+   if Sigma(X) =/=Bool undefined .
+  rl < true,  Sigma, Out > => < true,  Out > .
+  rl < false, Sigma, Out > => < false, Out > .
+
+  --- ----- arithmetic ------------------------------------------
+ crl < E1 + E2, Sigma, Out > => < I1 +Int I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 - E2, Sigma, Out > => < I1 -Int I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 * E2, Sigma, Out > => < I1 *Int I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 // E2, Sigma, Out > => < floorDiv(I1, I2), Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 >
+   /\ I2 =/=Bool 0 .
+ crl < E1 % E2, Sigma, Out > => < floorMod(I1, I2), Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 >
+   /\ I2 =/=Bool 0 .
+ crl < uminus E, Sigma, Out > => < -Int I, Out' >
+   if < E, Sigma, Out > => < I, Out' > .
+
+  --- ----- comparison -----------------------------------------
+ crl < E1 <  E2, Sigma, Out > => < (I1 <=Int I2) andBool (I1 =/=Bool I2), Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 <= E2, Sigma, Out > => < I1 <=Int I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 >  E2, Sigma, Out > => < I2 <Int I1, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 >= E2, Sigma, Out > => < I2 <=Int I1, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 eqq E2, Sigma, Out > => < I1 ==Bool I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+ crl < E1 neq E2, Sigma, Out > => < I1 =/=Bool I2, Out2 >
+   if < E1, Sigma, Out  > => < I1, Out1 >
+   /\ < E2, Sigma, Out1 > => < I2, Out2 > .
+
+  --- ----- shorthands for true/false comparison promotion ----
+  --- _<Int_ is not in PL-INT (only _<=Int_ and _>Int_); define here.
+  op _<Int_ : Int Int -> Bool [prec 37] .
+  eq I1 <Int I2 = (I1 <=Int I2) andBool (I1 =/=Bool I2) .
+
+  --- ----- boolean ops with short-circuit ---------------------
+ crl < E1 and E2, Sigma, Out > => < false, Out' >
+   if < E1, Sigma, Out > => < false, Out' > .
+ crl < E1 and E2, Sigma, Out > => < T, Out2 >
+   if < E1, Sigma, Out  > => < true,  Out1 >
+   /\ < E2, Sigma, Out1 > => < T,     Out2 > .
+ crl < E1 or E2, Sigma, Out > => < true, Out' >
+   if < E1, Sigma, Out > => < true, Out' > .
+ crl < E1 or E2, Sigma, Out > => < T, Out2 >
+   if < E1, Sigma, Out  > => < false, Out1 >
+   /\ < E2, Sigma, Out1 > => < T,     Out2 > .
+ crl < not E, Sigma, Out > => < notBool T, Out' >
+   if < E, Sigma, Out > => < T, Out' > .
+
+  --- ----- statements ----------------------------------------
+  rl < pass, Sigma, Out > => < Sigma, Out > .
+
+ crl < X := E, Sigma, Out > => < Sigma[I / X], Out' >
+   if < E, Sigma, Out > => < I, Out' > .
+
+ crl < print(E), Sigma, Out > => < Sigma, Out' :: I >
+   if < E, Sigma, Out > => < I, Out' > .
+
+ crl < S1 ; S2, Sigma, Out > => < Sigma2, Out2 >
+   if < S1, Sigma,  Out  > => < Sigma1, Out1 >
+   /\ < S2, Sigma1, Out1 > => < Sigma2, Out2 > .
+
+ crl < ifelse(E){ S1 }else{ S2 }, Sigma, Out > => < Sigma1, Out2 >
+   if < E,  Sigma, Out  > => < true,   Out1 >
+   /\ < S1, Sigma, Out1 > => < Sigma1, Out2 > .
+ crl < ifelse(E){ S1 }else{ S2 }, Sigma, Out > => < Sigma2, Out2 >
+   if < E,  Sigma, Out  > => < false,  Out1 >
+   /\ < S2, Sigma, Out1 > => < Sigma2, Out2 > .
+
+ crl < while(E){ S }, Sigma, Out > => < Sigma, Out' >
+   if < E, Sigma, Out > => < false, Out' > .
+ crl < while(E){ S }, Sigma, Out > => < Sigma2, Out3 >
+   if < E, Sigma, Out  > => < true,  Out1 >
+   /\ < S, Sigma, Out1 > => < Sigma1, Out2 >
+   /\ < while(E){ S }, Sigma1, Out2 > => < Sigma2, Out3 > .
+
+  --- ----- whole-program kickoff -----------------------------
+ crl < S > => < Sigma, Out >
+   if < S, .State, .Out > => < Sigma, Out > .
+endm

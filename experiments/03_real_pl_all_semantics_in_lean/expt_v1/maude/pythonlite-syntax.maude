@@ -1,0 +1,91 @@
+--- ============================================================
+--- pythonlite-syntax.maude
+--- ============================================================
+--- AST for "pythonlite" — a small, distinctly-Python subset.
+---
+--- Scope [v1 — the smallest curated subset that is recognisably
+--- Python and exercises a real semantics]:
+---
+---   Values   : Int, Bool [True / False], Id [Python identifier].
+---   ExprOps  : + - * // %  [Python int arithmetic, floor division]
+---              < <= > >= eqq neq  [six comparisons; eqq = ==, neq = !=]
+---              and or not          [Python boolean operators; short-circuit]
+---              uminus              [unary -]
+---   Stmts    : pass, x = e, print[e], s ; s, if e: s else: s, while e: s
+---
+--- Two design notes:
+---
+--- [1] We use `eqq` and `neq` [not `==` and `!=`] as Maude operators,
+---     because Maude reserves `==` and `=/=` for built-in equality and
+---     redefining them confuses the parser.  The Python parser
+---     [`parse.py`] emits `eqq` / `neq` from Python's `==` / `!=`.
+---
+--- [2] Indentation-based scoping [Python's signature feature] cannot be
+---     parsed by Maude itself.  We desugar Python's newline+indent block
+---     structure into the explicit `;` sequence operator and `if e: s
+---     else: s` / `while e: s` constructors at parse time.  The Maude
+---     side never sees indentation; it only sees the desugared AST.
+---     This is the same parse-time desugaring strategy CS522 uses for
+---     IMP++ [see `cs522/HW3-Maude/imp/0-imp-original/imp-syntax.maude`].
+---
+--- All operator precedences are picked so that infix programs in
+--- `pythonlite-programs.maude` parse the way Python would parse them
+--- [see https://docs.python.org/3/reference/expressions.html
+--- §6.16 "Operator precedence"].
+--- ============================================================
+
+mod PYTHONLITE-SYNTAX is including PL-INT + PL-BOOL + PL-ID .
+
+  --- Expressions (Exp) ---
+  sort Exp .
+  subsorts Int Bool Id < Exp .
+
+  --- Arithmetic (Python: +, -, *, //, %, unary -)
+  op _+_   : Exp Exp -> Exp [prec 33 gather (E e) format (d b o d)] .
+  op _-_   : Exp Exp -> Exp [prec 33 gather (E e) format (d b o d)] .
+  op _*_   : Exp Exp -> Exp [prec 31 gather (E e) format (d b o d)] .
+  op _//_  : Exp Exp -> Exp [prec 31 gather (E e) format (d b o d)] .
+  op _%_   : Exp Exp -> Exp [prec 31 gather (E e) format (d b o d)] .
+  op uminus_ : Exp -> Exp   [prec 30 format (b o d)] .
+
+  --- Comparison (Python: <, <=, >, >=, ==, !=)
+  op _<_   : Exp Exp -> Exp [prec 37 format (d b o d)] .
+  op _<=_  : Exp Exp -> Exp [prec 37 format (d b o d)] .
+  op _>_   : Exp Exp -> Exp [prec 37 format (d b o d)] .
+  op _>=_  : Exp Exp -> Exp [prec 37 format (d b o d)] .
+  op _eqq_ : Exp Exp -> Exp [prec 37 format (d b o d)] .   --- Python ==
+  op _neq_ : Exp Exp -> Exp [prec 37 format (d b o d)] .   --- Python !=
+
+  --- Boolean (Python: and, or, not — short-circuit at semantic level)
+  op _and_ : Exp Exp -> Exp [prec 55 gather (E e) format (d b o d)] .
+  op _or_  : Exp Exp -> Exp [prec 59 gather (E e) format (d b o d)] .
+  op not_  : Exp -> Exp     [prec 53 format (b o d)] .
+
+  --- Statements (Stmt) ---
+  sort Stmt .
+
+  op pass        : -> Stmt [format (b o)] .
+  op _:=_        : Id Exp -> Stmt [prec 40 format (d b o d)] .          --- Python:  x = e
+  op print(_)    : Exp -> Stmt    [prec 40 format (b o d o)] .          --- Python:  print(e)
+  op _;_         : Stmt Stmt -> Stmt [prec 60 gather (e E)
+                                       format (d ni d)] .                --- newline-as-sequence
+
+  --- Block-shaped if/while.  The braces are Maude-internal; they do not
+  --- correspond to anything Python writes — they are just the way Maude
+  --- parses an inner Stmt under a header.  The parser desugars Python
+  --- "if e:\n  body" into "ifelse(e){ body }else{ pass }".
+  op ifelse(_){_}else{_} : Exp Stmt Stmt -> Stmt
+                            [prec 59 format (b o d s nib o d s nib o d)] .
+  op while(_){_}         : Exp Stmt -> Stmt
+                            [prec 59 format (b o d s nib o d)] .
+
+  --- Top-level program is just a Stmt.  Unlike CS522 IMP we do not
+  --- require an explicit `int x, y, z;` declaration prefix — Python
+  --- programs declare variables implicitly by first assignment, and
+  --- our State module (`pythonlite-state.maude`) follows the same
+  --- convention (lookup of an unassigned variable is `undefined`,
+  --- which propagates through arithmetic — equivalent to Python's
+  --- `NameError` at the operational level).
+  sort Pgm .
+  subsort Stmt < Pgm .
+endm

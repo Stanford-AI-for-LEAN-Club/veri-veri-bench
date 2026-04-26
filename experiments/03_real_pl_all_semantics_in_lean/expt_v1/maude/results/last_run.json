@@ -1,0 +1,14 @@
+{
+  "total": 7,
+  "pass":  7,
+  "fail":  0,
+  "per_test": [
+    {"name": "01_smoke", "status": "PASS", "reason": ""},
+    {"name": "02_arith", "status": "PASS", "reason": ""},
+    {"name": "03_if", "status": "PASS", "reason": ""},
+    {"name": "04_factorial", "status": "PASS", "reason": ""},
+    {"name": "05_collatz", "status": "PASS", "reason": ""},
+    {"name": "06_fizzbuzz", "status": "PASS", "reason": ""},
+    {"name": "07_shortcirc", "status": "PASS", "reason": ""}
+  ]
+}
