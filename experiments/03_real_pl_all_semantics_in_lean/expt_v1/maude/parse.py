@@ -18,6 +18,15 @@ import sys
 
 UNSUPPORTED = "pythonlite v1 does not support: "
 
+_fresh_counter = 0
+
+
+def fresh(prefix: str = "__i") -> str:
+    """Generate a unique Maude identifier for desugaring (e.g. for-loops)."""
+    global _fresh_counter
+    _fresh_counter += 1
+    return f"{prefix}_{_fresh_counter}"
+
 
 def emit_expr(n: ast.AST) -> str:
     if isinstance(n, ast.Constant):
@@ -140,6 +149,47 @@ def emit_stmt(n: ast.AST) -> str:
         cond = emit_expr(n.test)
         body = emit_block(n.body)
         return f"while({cond})" + "{" + body + "}"
+    if isinstance(n, ast.For):
+        if n.orelse:
+            raise SystemExit(UNSUPPORTED + "for-else")
+        if not isinstance(n.target, ast.Name):
+            raise SystemExit(UNSUPPORTED + "for-loop with non-name target (tuple unpacking deferred)")
+        loopvar = f"'{n.target.id}"
+        # Two cases:
+        #   (a) for x in range(...):       desugar with an integer counter.
+        #   (b) for x in <list expr>:      desugar with len() / indexing.
+        # Both use a fresh counter variable to avoid clobbering user code.
+        idx = f"'{fresh('idx')}"
+        if isinstance(n.iter, ast.Call) and isinstance(n.iter.func, ast.Name) \
+                and n.iter.func.id == "range":
+            args = n.iter.args
+            if not 1 <= len(args) <= 3 or n.iter.keywords:
+                raise SystemExit(UNSUPPORTED + f"range() with {len(args)} args (need 1, 2 or 3)")
+            if len(args) == 1:
+                start, stop, step = "0", emit_expr(args[0]), "1"
+            elif len(args) == 2:
+                start, stop, step = emit_expr(args[0]), emit_expr(args[1]), "1"
+            else:
+                start, stop, step = emit_expr(args[0]), emit_expr(args[1]), emit_expr(args[2])
+            body = emit_block(n.body)
+            # Loop:  idx = start; while idx < stop: x = idx; body; idx = idx + step
+            return (
+                f"({idx} := {start}) ; "
+                f"while(({idx} < {stop}))" + "{"
+                + f"({loopvar} := {idx}) ; {body} ; ({idx} := ({idx} + {step}))"
+                + "}"
+            )
+        # General case: iterate over a list expression by index.
+        listsrc = f"'{fresh('lst')}"
+        body = emit_block(n.body)
+        iter_expr = emit_expr(n.iter)
+        return (
+            f"({listsrc} := {iter_expr}) ; "
+            f"({idx} := 0) ; "
+            f"while(({idx} < len({listsrc})))" + "{"
+            + f"({loopvar} := ({listsrc} ! {idx})) ; {body} ; ({idx} := ({idx} + 1))"
+            + "}"
+        )
     if isinstance(n, ast.Pass):
         return "pass"
     raise SystemExit(UNSUPPORTED + f"stmt node {type(n).__name__}")

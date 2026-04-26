@@ -1,6 +1,6 @@
 {
-  "total": 16,
-  "pass":  16,
+  "total": 19,
+  "pass":  19,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -18,6 +18,9 @@
     {"name": "13_list_sum", "status": "PASS", "reason": ""},
     {"name": "14_list_concat_repeat", "status": "PASS", "reason": ""},
     {"name": "15_list_append", "status": "PASS", "reason": ""},
-    {"name": "16_list_subscript_assign", "status": "PASS", "reason": ""}
+    {"name": "16_list_subscript_assign", "status": "PASS", "reason": ""},
+    {"name": "17_for_range", "status": "PASS", "reason": ""},
+    {"name": "18_for_list", "status": "PASS", "reason": ""},
+    {"name": "19_for_build_list", "status": "PASS", "reason": ""}
   ]
 }
