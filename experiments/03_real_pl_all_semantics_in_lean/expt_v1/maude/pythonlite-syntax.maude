@@ -21,7 +21,7 @@
 --- Cycle 8 — tuples + multiple assignment.
 --- ============================================================
 
-mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
+mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PYTHONLITE-STATE + PL-ID .
 
   --- Expressions [Exp].  Note that we do NOT subsort Value < Exp here,
   --- because doing so confuses Maude's sort resolution at runtime
@@ -87,12 +87,22 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
   op ifelse(_){_}else{_} : Exp Stmt Stmt -> Stmt [prec 59] .
   op while(_){_}         : Exp Stmt -> Stmt       [prec 59] .
 
-  --- Functions [cycle 5]: def, return, call.
+  --- Functions [cycle 5/6]: def, return, call.
   --- We add the funcV constructor here [not in pythonlite-values.maude]
-  --- because it carries a Stmt body, and Stmt is defined here.
-  op funcV : IdList Stmt -> Value [ctor] .
-  op truthy_funcV : Value -> Bool .
-  eq truthy(funcV(IL:IdList, S:Stmt)) = true .
+  --- because it carries a Stmt body and (cycle 6) a captured State,
+  --- both of which are defined here / in pythonlite-state.maude.
+  ---
+  --- Cycle 5 used a 2-arg funcV(IL, body) with dynamic scoping at call
+  --- sites.  Cycle 6 promotes funcV to 3 arguments — funcV(IL, body,
+  --- captured) — capturing the def-site environment so closures
+  --- functions referring to outer locals after the outer scope has
+  --- exited work correctly.  Top-level functions and recursion work
+  --- via outer-scope merging at call time (see pythonlite-bigstep.maude
+  --- callExp rules).
+  op funcV : IdList Stmt State -> Value [ctor] .
+  --- funcV is always truthy in Python (functions are truthy objects).
+  vars ILt : IdList .  vars St_t : Stmt .  vars Capt : State .
+  eq truthy(funcV(ILt, St_t, Capt)) = true .
 
   --- def f[p1, p2, ..., pn]: body
   op def(_,_,_) : Id IdList Stmt -> Stmt [prec 40] .

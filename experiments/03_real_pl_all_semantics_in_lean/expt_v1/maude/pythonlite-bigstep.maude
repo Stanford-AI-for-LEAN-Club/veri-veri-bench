@@ -313,9 +313,10 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
   vars F : Exp .         --- function-position expression in callExp / callStmt
   vars SigmaB : State .  --- function body's resulting State (no-return path)
   vars Out0 OutA : Out . --- intermediate Out buffers in call evaluation
+  vars Cap : State .     --- captured State at function-def time (cycle 6)
 
   --- def f[params]: body  -- bind f in current state to a function value.
- rl < def(X, IL, Body), Sigma, Out > => < Sigma[funcV(IL, Body) / X], Out > .
+ rl < def(X, IL, Body), Sigma, Out > => < Sigma[funcV(IL, Body, Sigma) / X], Out > .
 
   --- bare return  -->  return None
   rl < return, Sigma, Out > => < ret(none), Out > .
@@ -344,14 +345,14 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
   --- Function call as expression.
   --- [a] Body returned a value via `return e`  --> use that value.
  crl < callExp(F, EL), Sigma, Out > => < V, Out2 >
-   if < F, Sigma, Out > => < funcV(IL, Body), Out0 >
+   if < F, Sigma, Out > => < funcV(IL, Body, Cap), Out0 >
    /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
-   /\ < Body, Sigma & buildFrame(IL, VL), OutA > => < ret(V), Out2 > .
+   /\ < Body, Sigma & Cap & buildFrame(IL, VL), OutA > => < ret(V), Out2 > .
   --- [b] Body completed normally [no return]  --> result is None.
  crl < callExp(F, EL), Sigma, Out > => < none, Out2 >
-   if < F, Sigma, Out > => < funcV(IL, Body), Out0 >
+   if < F, Sigma, Out > => < funcV(IL, Body, Cap), Out0 >
    /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
-   /\ < Body, Sigma & buildFrame(IL, VL), OutA > => < SigmaB, Out2 >
+   /\ < Body, Sigma & Cap & buildFrame(IL, VL), OutA > => < SigmaB, Out2 >
    .   --- SigmaB : State (subsort match — the no-return case)
 
   --- callStmt: same as callExp but the value is discarded.
