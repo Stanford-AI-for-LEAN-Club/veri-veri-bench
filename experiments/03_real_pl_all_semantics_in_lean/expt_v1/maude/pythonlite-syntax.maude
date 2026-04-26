@@ -130,6 +130,13 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PYTHONLITE-STATE + PL-ID 
   op raise(_) : Exp -> Stmt [prec 40] .
   op tryexcept(_,_,_) : Stmt Id Stmt -> Stmt [prec 59] .
 
+  --- Tuples [cycle 8]: tuple literal [e1, e2, ..., en desugared form]
+  --- and multi-assignment [a, b, ..., n = e where e evaluates to a
+  --- tuple or list of matching length].  Tuple unpacking in for-loops
+  --- — for a,b in pairs: — is desugared at parse time.
+  op tupLit : ExpList -> Exp [prec 20] .
+  op multiAssign : IdList Exp -> Stmt [prec 40] .
+
   --- Top-level program is just a Stmt.
   sort Pgm .
   subsort Stmt < Pgm .

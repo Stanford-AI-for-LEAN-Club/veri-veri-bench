@@ -1,6 +1,6 @@
 {
-  "total": 27,
-  "pass":  27,
+  "total": 29,
+  "pass":  29,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -29,6 +29,8 @@
     {"name": "24_closure_adder", "status": "PASS", "reason": ""},
     {"name": "25_higher_order", "status": "PASS", "reason": ""},
     {"name": "26_raise_catch", "status": "PASS", "reason": ""},
-    {"name": "27_raise_propagation", "status": "PASS", "reason": ""}
+    {"name": "27_raise_propagation", "status": "PASS", "reason": ""},
+    {"name": "28_tuples", "status": "PASS", "reason": ""},
+    {"name": "29_multi_assign_swap", "status": "PASS", "reason": ""}
   ]
 }

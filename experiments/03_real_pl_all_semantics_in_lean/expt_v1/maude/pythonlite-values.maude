@@ -42,6 +42,7 @@ mod PYTHONLITE-VALUES is
   op nil  : -> ListObj [ctor] .
   op cons : Value ListObj -> ListObj [ctor] .
   op listV : ListObj -> Value [ctor] .
+  op tupV  : ListObj -> Value [ctor] .   --- tuples (immutable lists, cycle 8)
 
   vars Vh Vh' : Value .   vars Lh L1h L2h : ListObj .   vars Ih : Int .
 
@@ -79,6 +80,8 @@ mod PYTHONLITE-VALUES is
   eq truthy(none)      = false .
   eq truthy(listV(nil))    = false .
   eq truthy(listV(cons(V:Value, L:ListObj))) = true .
+  eq truthy(tupV(nil))     = false .
+  eq truthy(tupV(cons(V:Value, L:ListObj))) = true .
 
   --- A function reference [cycle 5: no closure env yet] is added by
   --- pythonlite-syntax.maude after the Stmt sort exists, since funcV

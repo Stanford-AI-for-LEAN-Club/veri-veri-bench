@@ -403,6 +403,36 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
    /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
    /\ < Body, Sigma & Cap & buildFrame(IL, VL), OutA > => < raised(V), Out2 > .
 
+  --- ----- tuples [cycle 8] ----------------------------------
+  --- tupLit(...) — same eval as listLit but wraps in tupV instead of listV.
+ crl < tupLit(EL), Sigma, Out > => < tupV(L), Out' >
+   if evalElts(EL, Sigma, Out) => < L, Out' > .
+
+  --- len(t) for tuples [shares lstLen with lists].
+ crl < len(E), Sigma, Out > => < lstLen(L), Out' >
+   if < E, Sigma, Out > => < tupV(L), Out' > .
+
+  --- t ! i  for tuples [same indexing op as lists].
+ crl < E1 ! E2, Sigma, Out > => < lstIdx(L, I), Out2 >
+   if < E1, Sigma, Out  > => < tupV(L), Out1 >
+   /\ < E2, Sigma, Out1 > => < I, Out2 >
+   /\ I >=Int 0
+   /\ I <Int lstLen(L) .
+
+  --- Multi-assignment: a, b, ... = e   where e -> tupV(L) or listV(L).
+  --- Bind each id in IdList to the corresponding element of L; arity
+  --- mismatch leaves the assignment stuck [v2 will surface a ValueError].
+  op spreadAssign : State IdList ListObj -> State .
+  vars Xs : Id .  vars ILs : IdList .  vars Vs : Value .  vars Ls : ListObj .
+  eq spreadAssign(Sigma, nilI, nil) = Sigma .
+  eq spreadAssign(Sigma, consI(Xs, ILs), cons(Vs, Ls))
+    = spreadAssign(Sigma[Vs / Xs], ILs, Ls) .
+
+ crl < multiAssign(IL, E), Sigma, Out > => < spreadAssign(Sigma, IL, L), Out' >
+   if < E, Sigma, Out > => < tupV(L), Out' > .
+ crl < multiAssign(IL, E), Sigma, Out > => < spreadAssign(Sigma, IL, L), Out' >
+   if < E, Sigma, Out > => < listV(L), Out' > .
+
   --- ----- whole-program kickoff -----------------------------
   --- The program may end either with a State or with a ret[V] [if
   --- the program has a top-level return].  Both are Outcome.

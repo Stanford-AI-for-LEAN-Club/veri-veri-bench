@@ -104,6 +104,12 @@ def emit_expr(n: ast.AST) -> str:
         for e in reversed(n.elts):
             elts = f"consE({emit_expr(e)}, {elts})"
         return f"listLit({elts})"
+    if isinstance(n, ast.Tuple):
+        # Python:  (e1, e2, ..., en)   ->   tupLit(consE(e1, consE(e2, ..., nilE)))
+        elts = "nilE"
+        for e in reversed(n.elts):
+            elts = f"consE({emit_expr(e)}, {elts})"
+        return f"tupLit({elts})"
     if isinstance(n, ast.Subscript):
         # Python:  xs[i]   ->   (xs ! i)
         if not isinstance(n.slice, (ast.Constant, ast.Name, ast.BinOp, ast.Subscript, ast.Compare, ast.UnaryOp, ast.Call)):
@@ -137,6 +143,12 @@ def emit_stmt(n: ast.AST) -> str:
             return f"('{tgt.id} := {emit_expr(n.value)})"
         if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
             return f"('{tgt.value.id} [{emit_expr(tgt.slice)}] := {emit_expr(n.value)})"
+        if isinstance(tgt, ast.Tuple) and all(isinstance(e, ast.Name) for e in tgt.elts):
+            # a, b, ... = expr (or a, b = b, a swap)
+            ids = "nilI"
+            for e in reversed(tgt.elts):
+                ids = f"consI('{e.id}, {ids})"
+            return f"multiAssign({ids}, {emit_expr(n.value)})"
         raise SystemExit(UNSUPPORTED + f"assignment target {type(tgt).__name__}")
     if isinstance(n, ast.AugAssign):
         # x += e  -->  x = x + e   (parser-side desugar; semantics unchanged)
