@@ -1,0 +1,89 @@
+--- ============================================================
+--- pythonlite-values.maude
+--- ============================================================
+--- The runtime value sort.  Once we move past int-only programs,
+--- expression evaluation no longer returns `Int` directly --- it
+--- returns `Value`, the disjoint union of every kind of runtime
+--- object pythonlite knows about.
+---
+--- Approach: subsort the existing built-in Maude sorts under Value.
+--- Then a literal `5` is already a Value [via Int < Value]; a literal
+--- `"hi"` is already a Value [via String < Value]; `true` is a Value
+--- [via Bool < Value].  None is the only value that does not have a
+--- natural Maude sort, so we add a new constructor `none`.
+---
+--- For container types [list, dict, tuple, …] we will add reference
+--- constructors in later cycles: `listRef[Addr]`, `tupV[…]`, etc.
+--- A heap module will then map Addr -> ListObject.
+--- ============================================================
+
+mod PYTHONLITE-VALUES is
+  including PL-INT + PL-BOOL + PL-STRING .
+
+  sort Value .
+  subsorts Int Bool String < Value .
+
+  op none : -> Value [ctor] .
+
+  --- Functions [cycle 5].  A function value carries its parameter
+  --- list and body.  Closures [cycle 6] add a captured environment
+  --- as a third argument.
+  sort IdList .
+  op nilI  : -> IdList [ctor] .
+  op consI : Id IdList -> IdList [ctor] .
+
+  sort ValueList .
+  op nilVL  : -> ValueList [ctor] .
+  op consVL : Value ValueList -> ValueList [ctor] .
+
+  --- Lists, modeled by-value [no aliasing in cycle 2; cycle 2.5 will
+  --- introduce a Heap + listRef[Addr] for true Python aliasing].
+  sort ListObj .
+  op nil  : -> ListObj [ctor] .
+  op cons : Value ListObj -> ListObj [ctor] .
+  op listV : ListObj -> Value [ctor] .
+  op tupV  : ListObj -> Value [ctor] .   --- tuples (immutable lists, cycle 8)
+
+  vars Vh Vh' : Value .   vars Lh L1h L2h : ListObj .   vars Ih : Int .
+
+  op lstLen : ListObj -> Int .
+  eq lstLen(nil) = 0 .
+  eq lstLen(cons(Vh, Lh)) = 1 +Int lstLen(Lh) .
+
+  op lstIdx : ListObj Int -> Value .
+  eq lstIdx(cons(Vh, Lh), 0) = Vh .
+ ceq lstIdx(cons(Vh, Lh), Ih) = lstIdx(Lh, Ih -Int 1) if Ih >Int 0 .
+  --- out-of-bounds index: cycle 2 returns none; cycle 7 will surface
+  --- this as an IndexError.
+  eq lstIdx(Lh, Ih) = none [owise] .
+
+  op lstAppend : ListObj Value -> ListObj .
+  eq lstAppend(nil, Vh) = cons(Vh, nil) .
+  eq lstAppend(cons(Vh', Lh), Vh) = cons(Vh', lstAppend(Lh, Vh)) .
+
+  op lstConcat : ListObj ListObj -> ListObj .
+  eq lstConcat(nil, Lh) = Lh .
+  eq lstConcat(cons(Vh, L1h), L2h) = cons(Vh, lstConcat(L1h, L2h)) .
+
+  --- "truthy" — Python's bool[v] semantics.
+  --- 0, "", False, None are falsy; everything else is truthy.
+  --- Used to evaluate boolean contexts [if, while, and, or, not] uniformly
+  --- across value kinds, matching CPython's PyObject_IsTrue.
+  op truthy : Value -> Bool .
+  var I : Int .  var B : Bool .  var S : String .
+
+  eq truthy(0)         = false .
+  eq truthy(I)         = true  [owise] .
+  eq truthy(B)         = B .
+  eq truthy("")        = false .
+  eq truthy(S)         = true  [owise] .
+  eq truthy(none)      = false .
+  eq truthy(listV(nil))    = false .
+  eq truthy(listV(cons(V:Value, L:ListObj))) = true .
+  eq truthy(tupV(nil))     = false .
+  eq truthy(tupV(cons(V:Value, L:ListObj))) = true .
+
+  --- A function reference [cycle 5: no closure env yet] is added by
+  --- pythonlite-syntax.maude after the Stmt sort exists, since funcV
+  --- needs to carry a Stmt body.  Functions are always truthy.
+endm

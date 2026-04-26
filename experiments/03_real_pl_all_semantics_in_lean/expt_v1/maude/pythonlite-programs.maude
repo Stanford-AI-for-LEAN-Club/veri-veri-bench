@@ -1,0 +1,136 @@
+--- ============================================================
+--- pythonlite-programs.maude
+--- ============================================================
+--- Hand-written Maude AST for the test corpus.  Each constant of
+--- sort Pgm is the Maude-side encoding of the corresponding Python
+--- file under `tests/`.  The Python parser [`parse.py`] produces
+--- exactly this representation when run on `tests/<name>.py`.
+---
+--- We keep these named so that the test driver
+--- [`run_bigstep_tests.maude`] can rewrite them by name.
+--- ============================================================
+
+mod PYTHONLITE-PROGRAMS is including PYTHONLITE-SYNTAX .
+
+  ops smokePgm arithPgm ifPgm factorialPgm collatzPgm fizzbuzzPgm shortcircPgm : -> Pgm .
+
+  --- 01_smoke.py:
+  --- print(1)
+  eq smokePgm = print(1) .
+
+  --- 02_arith.py:
+  --- x = 10
+  --- y = 20
+  --- print(x + y)
+  --- print(x * y - 5)
+  --- print(x // 3)
+  --- print(x % 3)
+  eq arithPgm = (
+    'x := 10                ;
+    'y := 20                ;
+    print('x + 'y)          ;
+    print('x * 'y - 5)      ;
+    print('x // 3)          ;
+    print('x % 3)
+  ) .
+
+  --- 03_if.py:
+  --- x = 7
+  --- if x % 2 eqq 0:
+  ---     print(0)
+  --- else:
+  ---     print(1)
+  eq ifPgm = (
+    'x := 7                                                          ;
+    ifelse('x % 2 eqq 0){ print(0) }else{ print(1) }
+  ) .
+
+  --- 04_factorial.py:
+  --- n = 5
+  --- acc = 1
+  --- i = 1
+  --- while i <= n:
+  ---     acc = acc * i
+  ---     i = i + 1
+  --- print(acc)
+  eq factorialPgm = (
+    'n   := 5                ;
+    'acc := 1                ;
+    'i   := 1                ;
+    while('i <= 'n){
+      'acc := 'acc * 'i      ;
+      'i   := 'i + 1
+    }                        ;
+    print('acc)
+  ) .
+
+  --- 05_collatz.py:
+  --- n = 27
+  --- steps = 0
+  --- while n > 1:
+  ---     if n % 2 eqq 0:
+  ---         n = n // 2
+  ---     else:
+  ---         n = 3 * n + 1
+  ---     steps = steps + 1
+  --- print(steps)
+  eq collatzPgm = (
+    'n     := 27                                       ;
+    'steps := 0                                        ;
+    while('n > 1){
+      ifelse('n % 2 eqq 0){
+        'n := 'n // 2
+      }else{
+        'n := 3 * 'n + 1
+      }                                                ;
+      'steps := 'steps + 1
+    }                                                  ;
+    print('steps)
+  ) .
+
+  --- 06_fizzbuzz.py: print sentinel ints (-15 = FizzBuzz, -3 = Fizz,
+  ---                                       -5 = Buzz, i otherwise) for i in 1..15.
+  --- (We use sentinel ints rather than strings to keep pythonlite
+  --- v1 string-free; the Python reference program prints the same
+  --- sentinels.)
+  eq fizzbuzzPgm = (
+    'i := 1                                                            ;
+    while('i <= 15){
+      ifelse('i % 15 eqq 0){
+        print(uminus 15)
+      }else{
+        ifelse('i % 3 eqq 0){
+          print(uminus 3)
+        }else{
+          ifelse('i % 5 eqq 0){
+            print(uminus 5)
+          }else{
+            print('i)
+          }
+        }
+      }                                                                ;
+      'i := 'i + 1
+    }
+  ) .
+
+  --- 07_shortcirc.py: validate Python and/or short-circuit semantics
+  --- x = 0
+  --- y = 0
+  --- # x or 5 returns 5 (since x is falsy -> 0); we encode "x is truthy" as x neq 0
+  --- if (x neq 0) or (y eqq 0):
+  ---     print(1)
+  --- else:
+  ---     print(0)
+  --- # (x neq 0) and (y // x eqq 0) must NOT crash on division-by-zero
+  --- # because x neq 0 is false and short-circuits.
+  --- if (x neq 0) and (y // x eqq 0):
+  ---     print(2)
+  --- else:
+  ---     print(3)
+  eq shortcircPgm = (
+    'x := 0                                                                  ;
+    'y := 0                                                                  ;
+    ifelse(('x neq 0) or ('y eqq 0)){ print(1) }else{ print(0) }             ;
+    ifelse(('x neq 0) and (('y // 'x) eqq 0)){ print(2) }else{ print(3) }
+  ) .
+endm

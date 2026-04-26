@@ -1,0 +1,32 @@
+--- ============================================================
+--- pl-string.maude
+--- ============================================================
+--- Minimal String support for pythonlite, in the same style as the
+--- existing CS522 PL-INT / PL-BOOL modules in builtins.maude.
+---
+--- We deliberately do NOT include Maude's prelude STRING module
+--- because the CS522 builtins.maude is consumed with `-no-prelude`
+--- and re-defining sort String there clashes.  Instead we declare
+--- our own String sort and link the operations to the same Maude
+--- C++ hooks that the prelude does.  This is the same recipe
+--- builtins.maude uses for PL-INT / PL-BOOL.
+--- ============================================================
+
+mod PL-STRING is
+  including PL-BOOL .
+  protecting PL-INT .
+
+  sort String .
+  op <Strings> : -> String [special (id-hook StringSymbol)] .
+  op _+String_ : String String -> String [prec 33 gather (E e) special (
+    id-hook StringOpSymbol (+)
+    op-hook stringSymbol (<Strings> : ~> String))] .
+  op length : String -> Int [special (
+    id-hook StringOpSymbol (length)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook succSymbol (sInt_ : Int ~> Int))] .
+  op substr : String Int Int -> String [special (
+    id-hook StringOpSymbol (substr)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook succSymbol (sInt_ : Int ~> Int))] .
+endm

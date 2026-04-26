@@ -1,0 +1,35 @@
+--- ============================================================
+--- run_bigstep_tests.maude
+--- ============================================================
+--- Loads the pythonlite big-step semantics + named test programs and
+--- rewrites each one to a final < Sigma, Out > configuration.  The
+--- shell-level driver [`run_diff_test.sh`] parses the printed Out
+--- buffer back into newline-separated integers and diffs against
+--- CPython's stdout for the same Python source.
+--- ============================================================
+
+in builtins.maude
+in pl-string.maude
+in pythonlite-values.maude
+in pythonlite-syntax.maude
+in pythonlite-state.maude
+in pythonlite-bigstep.maude
+in pythonlite-programs.maude
+
+mod TEST is
+  including PYTHONLITE-SEMANTICS-BIGSTEP + PYTHONLITE-PROGRAMS .
+endm
+
+--- Each `rewrite < <name>Pgm > .` line emits a single
+--- `< Sigma:State, Out:Out >` configuration; the shell driver greps
+--- the `Out` portion [the `_::_` integer list] for comparison.
+
+rewrite < smokePgm > .
+rewrite < arithPgm > .
+rewrite < ifPgm > .
+rewrite < factorialPgm > .
+rewrite < collatzPgm > .
+rewrite < fizzbuzzPgm > .
+rewrite < shortcircPgm > .
+
+quit

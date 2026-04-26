@@ -1,0 +1,53 @@
+--- ============================================================
+--- pythonlite-state.maude
+--- ============================================================
+--- State and output buffer for pythonlite.
+---
+--- State is a mapping Id -> Value [from cycle 1 onward, was Id -> Int
+--- in cycle 0].  Lookup of an unbound variable is `none` --- the same
+--- sentinel CPython would conceptually use before raising NameError;
+--- we surface this as "stuck" rather than raising in v1.
+---
+--- Following CS522 IMP convention [`cs522/HW1-Maude/imp/state.maude`]:
+---
+---   * `_|->_` is a single binding;
+---   * `_&_`   is associative-commutative state composition with
+---             identity `.State`;
+---   * `_[_]`  is variable lookup;
+---   * `_[_/_]` is variable update --- existing binding is overwritten,
+---              missing binding is added [Python's implicit declaration].
+---
+--- Output buffer is a list of Values [from cycle 1 onward, was list
+--- of Int in cycle 0].  Each `print[e]` appends one Value.  We emit
+--- newlines at extraction time to match CPython's `print[x]` shape.
+--- ============================================================
+
+mod PYTHONLITE-STATE is including PYTHONLITE-VALUES + PL-ID .
+  sort State .
+  op _|->_ : Id Value -> State [prec 0] .
+  op .State : -> State .
+  op _&_   : State State -> State [assoc comm id: .State format (d s s d)] .
+
+  op _(_)    : State Id -> Value     [prec 0] .         --- lookup
+  op _[_/_]  : State Value Id -> State [prec 0] .       --- update
+
+  var Sigma : State .  var V V' : Value .  var X : Id .
+
+  --- A binding to `none` from an explicit assignment `x = None` is a
+  --- real binding; we do NOT treat it as "absent".  Hence no equation
+  --- `X |-> none = .State`.  Absence is handled by the [owise] lookup.
+
+  eq (Sigma & X |-> V)(X) = V .
+  eq Sigma(X) = none [owise] .
+
+  eq (Sigma & X |-> V)[V' / X] = (Sigma & X |-> V') .
+  eq Sigma[V / X] = (Sigma & X |-> V) [owise] .
+endm
+
+--- Output buffer: list of Values, one per `print[e]`.
+mod PYTHONLITE-OUT is including PYTHONLITE-VALUES .
+  sort Out .
+  subsort Value < Out .
+  op .Out  : -> Out [ctor] .
+  op _::_  : Out Out -> Out [ctor assoc id: .Out prec 60] .
+endm

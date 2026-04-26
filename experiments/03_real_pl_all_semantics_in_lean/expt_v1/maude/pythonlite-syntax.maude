@@ -1,0 +1,143 @@
+--- ============================================================
+--- pythonlite-syntax.maude
+--- ============================================================
+--- AST for pythonlite.  Grows with each cycle; this file is the
+--- single source of truth for "what programs are syntactically valid
+--- pythonlite".
+---
+--- Cycle 0 — int / bool / id; +, -, *, //, %, unary -; <, <=, >, >=,
+---           eqq [Python ==], neq [Python !=]; and / or / not;
+---           pass, := [Python =], print[e], ;, ifelse, while.
+--- Cycle 1 — strings: literal "abc", `len[e]`, `+` overloads to concat
+---           when both operands are strings.
+--- Cycle 2 — lists: literal `[e1, e2, …]`, indexing `xs[i]`, `len[xs]`,
+---           `xs.append[e]`.
+--- Cycle 3 — for-loops over `range[n]` and over lists.
+--- Cycle 4 — augmented assignment `x += e`, `x -= e`, `x *= e`.
+--- Cycle 5 — `def f[args]: body`, `return e`, calls `f[a1, …]`.
+--- Cycle 6 — closures + recursion [no AST change beyond cycle 5;
+---           closures are a runtime concept].
+--- Cycle 7 — exceptions: `raise`, `try / except / finally`.
+--- Cycle 8 — tuples + multiple assignment.
+--- ============================================================
+
+mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PYTHONLITE-STATE + PL-ID .
+
+  --- Expressions [Exp].  Note that we do NOT subsort Value < Exp here,
+  --- because doing so confuses Maude's sort resolution at runtime
+  --- [a Value flowing out of a sub-evaluation could be reparsed as a
+  --- new Exp].  Instead, integer / bool / string literals are subsorted
+  --- as Exp directly via the underlying Maude built-ins.
+  sort Exp .
+  subsorts Int Bool String Id < Exp .
+
+  --- Arithmetic + string concat [Python: +, -, *, //, %, unary -]
+  --- _+_ is *overloaded* — semantics dispatches on operand kinds.
+  op _+_   : Exp Exp -> Exp [prec 33 gather (E e)] .
+  op _-_   : Exp Exp -> Exp [prec 33 gather (E e)] .
+  op _*_   : Exp Exp -> Exp [prec 31 gather (E e)] .
+  op _//_  : Exp Exp -> Exp [prec 31 gather (E e)] .
+  op _%_   : Exp Exp -> Exp [prec 31 gather (E e)] .
+  op uminus_ : Exp -> Exp   [prec 30] .
+
+  --- Comparison [Python: <, <=, >, >=, ==, !=]
+  op _<_   : Exp Exp -> Exp [prec 37] .
+  op _<=_  : Exp Exp -> Exp [prec 37] .
+  op _>_   : Exp Exp -> Exp [prec 37] .
+  op _>=_  : Exp Exp -> Exp [prec 37] .
+  op _eqq_ : Exp Exp -> Exp [prec 37] .   --- Python ==
+  op _neq_ : Exp Exp -> Exp [prec 37] .   --- Python !=
+
+  --- Boolean [Python: and, or, not — short-circuit at semantic level]
+  op _and_ : Exp Exp -> Exp [prec 55 gather (E e)] .
+  op _or_  : Exp Exp -> Exp [prec 59 gather (E e)] .
+  op not_  : Exp -> Exp     [prec 53] .
+
+  --- Built-in callable [Python: len[s] — works on strings in cycle 1,
+  --- lists in cycle 2, tuples in cycle 8].
+  op len(_) : Exp -> Exp [prec 20] .
+
+  --- List expressions [cycle 2].
+  --- We use a fixed-arity "ListLit" wrapper around an ExpList — Maude can't
+  --- give us Python's variadic [e1, …, en] in a single op declaration,
+  --- so we model an ExpList as nil_e / cons_e and the parser builds it.
+  sort ExpList .
+  op nilE  : -> ExpList .
+  op consE : Exp ExpList -> ExpList .
+  op listLit : ExpList -> Exp [prec 20] .       --- [e1, e2, …, en]
+  op _!_     : Exp Exp -> Exp [prec 20] .       --- xs ! i  ==  xs[i]
+  op _++_    : Exp Exp -> Exp [prec 33 gather (E e)] . --- list/string concat sugar (parser uses + still;
+                                                       --- this is unused but reserved for future]
+
+  --- Statements [Stmt]
+  sort Stmt .
+
+  op pass        : -> Stmt .
+  op _:=_        : Id Exp -> Stmt [prec 40] .          --- Python: x = e
+  op print(_)    : Exp -> Stmt    [prec 40] .          --- Python: print(e)
+  op _;_         : Stmt Stmt -> Stmt [prec 60 gather (e E)] .
+
+  --- xs.append[v] — modeled as a statement that re-binds xs to a longer list.
+  --- Pythonlite v1 lists are by-value, so this also breaks aliasing
+  --- [intentional cycle 2 limitation; cycle 2.5 will introduce a heap].
+  op _.append(_) : Id Exp -> Stmt [prec 40] .
+  --- xs[i] = v — list element assignment.
+  op _[_]:=_     : Id Exp Exp -> Stmt [prec 40] .
+
+  op ifelse(_){_}else{_} : Exp Stmt Stmt -> Stmt [prec 59] .
+  op while(_){_}         : Exp Stmt -> Stmt       [prec 59] .
+
+  --- Functions [cycle 5/6]: def, return, call.
+  --- We add the funcV constructor here [not in pythonlite-values.maude]
+  --- because it carries a Stmt body and [cycle 6] a captured State,
+  --- both of which are defined here / in pythonlite-state.maude.
+  ---
+  --- Cycle 5 used a 2-arg funcV[IL, body] with dynamic scoping at call
+  --- sites.  Cycle 6 promotes funcV to 3 arguments — funcV[IL, body,
+  --- captured] — capturing the def-site environment so closures
+  --- functions referring to outer locals after the outer scope has
+  --- exited work correctly.  Top-level functions and recursion work
+  --- via outer-scope merging at call time [see pythonlite-bigstep.maude
+  --- callExp rules].
+  op funcV : IdList Stmt State -> Value [ctor] .
+  --- funcV is always truthy in Python [functions are truthy objects].
+  vars ILt : IdList .  vars St_t : Stmt .  vars Capt : State .
+  eq truthy(funcV(ILt, St_t, Capt)) = true .
+
+  --- def f[p1, p2, ..., pn]: body
+  op def(_,_,_) : Id IdList Stmt -> Stmt [prec 40] .
+
+  --- return e   /   bare 'return' returns None
+  op return(_) : Exp -> Stmt [prec 40] .
+  op return  : -> Stmt .
+
+  --- call[f, args] — function call as expression
+  op callExp : Exp ExpList -> Exp [prec 20] .
+
+  --- bare-call statement [e.g. f[...] used for its side effects, no
+  --- value consumed].  Same evaluation as callExp; we discard the
+  --- result.
+  op callStmt : Exp ExpList -> Stmt [prec 40] .
+
+  --- Exceptions [cycle 7]:
+  ---   raise e         -> evaluate e, propagate as raised[V]
+  ---   try { body }
+  ---   except as x { handler }
+  --- Pythonlite v1 has no exception class hierarchy — `except` always
+  --- catches anything raised; the caught value is bound to `x` for the
+  --- handler's lifetime.  A bare `raise` [no expression] is unsupported
+  --- in v1 [no current-exception slot].
+  op raise(_) : Exp -> Stmt [prec 40] .
+  op tryexcept(_,_,_) : Stmt Id Stmt -> Stmt [prec 59] .
+
+  --- Tuples [cycle 8]: tuple literal [e1, e2, ..., en desugared form]
+  --- and multi-assignment [a, b, ..., n = e where e evaluates to a
+  --- tuple or list of matching length].  Tuple unpacking in for-loops
+  --- — for a,b in pairs: — is desugared at parse time.
+  op tupLit : ExpList -> Exp [prec 20] .
+  op multiAssign : IdList Exp -> Stmt [prec 40] .
+
+  --- Top-level program is just a Stmt.
+  sort Pgm .
+  subsort Stmt < Pgm .
+endm
