@@ -125,6 +125,22 @@ def emit_stmt(n: ast.AST) -> str:
         if isinstance(tgt, ast.Subscript) and isinstance(tgt.value, ast.Name):
             return f"('{tgt.value.id} [{emit_expr(tgt.slice)}] := {emit_expr(n.value)})"
         raise SystemExit(UNSUPPORTED + f"assignment target {type(tgt).__name__}")
+    if isinstance(n, ast.AugAssign):
+        # x += e  -->  x = x + e   (parser-side desugar; semantics unchanged)
+        op_sym = {
+            ast.Add: "+", ast.Sub: "-", ast.Mult: "*",
+            ast.FloorDiv: "//", ast.Mod: "%",
+        }.get(type(n.op))
+        if op_sym is None:
+            raise SystemExit(UNSUPPORTED + f"augmented op {type(n.op).__name__}")
+        if isinstance(n.target, ast.Name):
+            tgt_expr = f"'{n.target.id}"
+            return f"('{n.target.id} := ({tgt_expr} {op_sym} {emit_expr(n.value)}))"
+        if isinstance(n.target, ast.Subscript) and isinstance(n.target.value, ast.Name):
+            base = f"'{n.target.value.id}"
+            idx = emit_expr(n.target.slice)
+            return f"({base} [{idx}] := (({base} ! {idx}) {op_sym} {emit_expr(n.value)}))"
+        raise SystemExit(UNSUPPORTED + f"aug-assign target {type(n.target).__name__}")
     if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call):
         c = n.value
         if isinstance(c.func, ast.Name) and c.func.id == "print":
