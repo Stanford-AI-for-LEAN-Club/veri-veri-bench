@@ -84,7 +84,13 @@ def emit_expr(n: ast.AST) -> str:
             if len(n.args) != 1 or n.keywords:
                 raise SystemExit(UNSUPPORTED + "len() with multiple / keyword args")
             return f"len({emit_expr(n.args[0])})"
-        raise SystemExit(UNSUPPORTED + f"call to {ast.dump(n.func)}")
+        # General function call: callExp(f, args)
+        if n.keywords:
+            raise SystemExit(UNSUPPORTED + "call with keyword args")
+        args = "nilE"
+        for a in reversed(n.args):
+            args = f"consE({emit_expr(a)}, {args})"
+        return f"callExp({emit_expr(n.func)}, {args})"
     if isinstance(n, ast.List):
         # Python:  [e1, e2, ..., en]   ->   listLit(consE(e1, consE(e2, ..., nilE)))
         elts = "nilE"
@@ -153,7 +159,13 @@ def emit_stmt(n: ast.AST) -> str:
             if len(c.args) != 1 or c.keywords:
                 raise SystemExit(UNSUPPORTED + "append() with multiple / keyword args")
             return f"('{c.func.value.id} .append({emit_expr(c.args[0])}))"
-        raise SystemExit(UNSUPPORTED + f"call statement to {ast.dump(c.func)}")
+        # General bare-call statement: f(args) for side effects (cycle 5).
+        if c.keywords:
+            raise SystemExit(UNSUPPORTED + "call statement with keyword args")
+        args = "nilE"
+        for a in reversed(c.args):
+            args = f"consE({emit_expr(a)}, {args})"
+        return f"callStmt({emit_expr(c.func)}, {args})"
     if isinstance(n, ast.If):
         cond = emit_expr(n.test)
         body = emit_block(n.body)
@@ -206,6 +218,27 @@ def emit_stmt(n: ast.AST) -> str:
             + f"({loopvar} := ({listsrc} ! {idx})) ; {body} ; ({idx} := ({idx} + 1))"
             + "}"
         )
+    if isinstance(n, ast.FunctionDef):
+        # def f(p1, p2, ...): body
+        if n.args.kwonlyargs or n.args.vararg or n.args.kwarg \
+                or n.args.posonlyargs or n.args.kw_defaults:
+            raise SystemExit(UNSUPPORTED + "def with kwonly/vararg/kwarg/posonly")
+        if n.args.defaults:
+            raise SystemExit(UNSUPPORTED + "def with default arg values (cycle 5.5)")
+        if n.decorator_list:
+            raise SystemExit(UNSUPPORTED + "decorators")
+        if n.returns is not None:
+            # ignore return annotation
+            pass
+        params = "nilI"
+        for p in reversed(n.args.args):
+            params = f"consI('{p.arg}, {params})"
+        body = emit_block(n.body)
+        return f"def('{n.name}, {params}, ({body}))"
+    if isinstance(n, ast.Return):
+        if n.value is None:
+            return "return"
+        return f"return({emit_expr(n.value)})"
     if isinstance(n, ast.Pass):
         return "pass"
     raise SystemExit(UNSUPPORTED + f"stmt node {type(n).__name__}")

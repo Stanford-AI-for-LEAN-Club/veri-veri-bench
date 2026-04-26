@@ -1,6 +1,6 @@
 {
-  "total": 20,
-  "pass":  20,
+  "total": 22,
+  "pass":  22,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -22,6 +22,8 @@
     {"name": "17_for_range", "status": "PASS", "reason": ""},
     {"name": "18_for_list", "status": "PASS", "reason": ""},
     {"name": "19_for_build_list", "status": "PASS", "reason": ""},
-    {"name": "20_aug_assign", "status": "PASS", "reason": ""}
+    {"name": "20_aug_assign", "status": "PASS", "reason": ""},
+    {"name": "21_function_basic", "status": "PASS", "reason": ""},
+    {"name": "22_function_void", "status": "PASS", "reason": ""}
   ]
 }

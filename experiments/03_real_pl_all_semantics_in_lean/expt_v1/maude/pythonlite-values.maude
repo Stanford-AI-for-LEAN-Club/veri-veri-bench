@@ -25,6 +25,17 @@ mod PYTHONLITE-VALUES is
 
   op none : -> Value [ctor] .
 
+  --- Functions [cycle 5].  A function value carries its parameter
+  --- list and body.  Closures [cycle 6] add a captured environment
+  --- as a third argument.
+  sort IdList .
+  op nilI  : -> IdList [ctor] .
+  op consI : Id IdList -> IdList [ctor] .
+
+  sort ValueList .
+  op nilVL  : -> ValueList [ctor] .
+  op consVL : Value ValueList -> ValueList [ctor] .
+
   --- Lists, modeled by-value [no aliasing in cycle 2; cycle 2.5 will
   --- introduce a Heap + listRef[Addr] for true Python aliasing].
   sort ListObj .
@@ -68,4 +79,8 @@ mod PYTHONLITE-VALUES is
   eq truthy(none)      = false .
   eq truthy(listV(nil))    = false .
   eq truthy(listV(cons(V:Value, L:ListObj))) = true .
+
+  --- A function reference [cycle 5: no closure env yet] is added by
+  --- pythonlite-syntax.maude after the Stmt sort exists, since funcV
+  --- needs to carry a Stmt body.  Functions are always truthy.
 endm

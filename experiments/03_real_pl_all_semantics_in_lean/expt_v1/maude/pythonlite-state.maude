@@ -8,18 +8,18 @@
 --- sentinel CPython would conceptually use before raising NameError;
 --- we surface this as "stuck" rather than raising in v1.
 ---
---- Following CS522 IMP convention (`cs522/HW1-Maude/imp/state.maude`):
+--- Following CS522 IMP convention [`cs522/HW1-Maude/imp/state.maude`]:
 ---
 ---   * `_|->_` is a single binding;
 ---   * `_&_`   is associative-commutative state composition with
 ---             identity `.State`;
----   * `_(_)`  is variable lookup;
+---   * `_[_]`  is variable lookup;
 ---   * `_[_/_]` is variable update --- existing binding is overwritten,
----              missing binding is added (Python's implicit declaration).
+---              missing binding is added [Python's implicit declaration].
 ---
 --- Output buffer is a list of Values [from cycle 1 onward, was list
 --- of Int in cycle 0].  Each `print[e]` appends one Value.  We emit
---- newlines at extraction time to match CPython's `print(x)` shape.
+--- newlines at extraction time to match CPython's `print[x]` shape.
 --- ============================================================
 
 mod PYTHONLITE-STATE is including PYTHONLITE-VALUES + PL-ID .

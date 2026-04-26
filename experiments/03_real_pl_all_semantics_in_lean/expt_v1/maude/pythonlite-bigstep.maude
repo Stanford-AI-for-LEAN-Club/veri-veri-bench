@@ -22,13 +22,21 @@
 mod PYTHONLITE-CONFIGURATIONS-BIGSTEP is
   including PYTHONLITE-SYNTAX + PYTHONLITE-STATE + PYTHONLITE-OUT .
 
+  --- Outcome [cycle 5]: a statement either completes normally [yielding
+  --- an updated State], or returns early via `return e` [yielding
+  --- ret[V]].  Outcome is the union; existing rules that produce
+  --- State automatically lift via subsort.
+  sort Outcome .
+  subsort State < Outcome .
+  op ret : Value -> Outcome [ctor] .
+
   sort Configuration .
   --- expression configurations [Value-result]
   op <_,_,_> : Exp State Out -> Configuration .
   op <_,_>   : Value Out -> Configuration [ctor] .
   --- statement configurations
   op <_,_,_> : Stmt State Out -> Configuration .
-  op <_,_>   : State Out -> Configuration [ctor] .
+  op <_,_>   : Outcome Out -> Configuration [ctor] .
   --- whole-program [starts from empty state + empty output]
   op <_>     : Pgm -> Configuration .
 endm
@@ -244,7 +252,7 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
  crl < print(E), Sigma, Out > => < Sigma, Out' :: V >
    if < E, Sigma, Out > => < V, Out' > .
 
-  --- xs.append(v): rebind xs to xs + [v] (pure-value lists; no aliasing in v1)
+  --- xs.append[v]: rebind xs to xs + [v] [pure-value lists; no aliasing in v1]
  crl < X .append(E), Sigma, Out > => < Sigma[listV(lstAppend(L, V)) / X], Out' >
    if listV(L) := Sigma(X)
    /\ < E, Sigma, Out > => < V, Out' > .
@@ -262,30 +270,102 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
  ceq lstSet(cons(Vh', Lh), I, Vh) = cons(Vh', lstSet(Lh, I -Int 1, Vh))
    if I >Int 0 .
 
- crl < St1 ; St2, Sigma, Out > => < Sigma2, Out2 >
-   if < St1, Sigma,  Out  > => < Sigma1, Out1 >
-   /\ < St2, Sigma1, Out1 > => < Sigma2, Out2 > .
+  --- ----- sequence: normal flow OR early return ------------
+  vars Outc Outc1 Outc2 : Outcome .
+
+  --- Normal flow: S1 produces a State, then S2 runs in that State.
+ crl < St1 ; St2, Sigma, Out > => < Outc2, Out2 >
+   if < St1, Sigma,  Out  > => < Sigma1, Out1 >    --- Sigma1 : State
+   /\ < St2, Sigma1, Out1 > => < Outc2,  Out2 > .
+
+  --- Early return: S1 returns -> short-circuit, propagate ret upward.
+ crl < St1 ; St2, Sigma, Out > => < ret(V), Out1 >
+   if < St1, Sigma, Out > => < ret(V), Out1 > .
 
   --- if uses truthy[_] to match Python's "any value can be a condition"
- crl < ifelse(E){ St1 }else{ St2 }, Sigma, Out > => < Sigma1, Out2 >
+ crl < ifelse(E){ St1 }else{ St2 }, Sigma, Out > => < Outc1, Out2 >
    if < E,  Sigma, Out  > => < V, Out1 >
    /\ truthy(V) ==Bool true
-   /\ < St1, Sigma, Out1 > => < Sigma1, Out2 > .
- crl < ifelse(E){ St1 }else{ St2 }, Sigma, Out > => < Sigma2, Out2 >
+   /\ < St1, Sigma, Out1 > => < Outc1, Out2 > .
+ crl < ifelse(E){ St1 }else{ St2 }, Sigma, Out > => < Outc2, Out2 >
    if < E,  Sigma, Out  > => < V, Out1 >
    /\ truthy(V) ==Bool false
-   /\ < St2, Sigma, Out1 > => < Sigma2, Out2 > .
+   /\ < St2, Sigma, Out1 > => < Outc2, Out2 > .
 
+  --- while: condition false -> exit normally.
  crl < while(E){ St }, Sigma, Out > => < Sigma, Out' >
    if < E, Sigma, Out > => < V, Out' >
    /\ truthy(V) ==Bool false .
- crl < while(E){ St }, Sigma, Out > => < Sigma2, Out3 >
+  --- while: body completes normally -> iterate.
+ crl < while(E){ St }, Sigma, Out > => < Outc2, Out3 >
    if < E,  Sigma, Out  > => < V, Out1 >
    /\ truthy(V) ==Bool true
-   /\ < St, Sigma, Out1 > => < Sigma1, Out2 >
-   /\ < while(E){ St }, Sigma1, Out2 > => < Sigma2, Out3 > .
+   /\ < St, Sigma, Out1 > => < Sigma1, Out2 >        --- Sigma1 : State (no return)
+   /\ < while(E){ St }, Sigma1, Out2 > => < Outc2, Out3 > .
+  --- while: body returned -> propagate.
+ crl < while(E){ St }, Sigma, Out > => < ret(V), Out2 >
+   if < E,  Sigma, Out  > => < V', Out1 >
+   /\ truthy(V') ==Bool true
+   /\ < St, Sigma, Out1 > => < ret(V), Out2 > .
+
+  --- ----- functions: def / return / call ------------------
+  vars IL : IdList .  vars Body : Stmt .  vars VL : ValueList .
+  vars F : Exp .         --- function-position expression in callExp / callStmt
+  vars SigmaB : State .  --- function body's resulting State (no-return path)
+  vars Out0 OutA : Out . --- intermediate Out buffers in call evaluation
+
+  --- def f[params]: body  -- bind f in current state to a function value.
+ rl < def(X, IL, Body), Sigma, Out > => < Sigma[funcV(IL, Body) / X], Out > .
+
+  --- bare return  -->  return None
+  rl < return, Sigma, Out > => < ret(none), Out > .
+
+  --- return e  -->  evaluate e, produce ret[V].
+ crl < return(E), Sigma, Out > => < ret(V), Out' >
+   if < E, Sigma, Out > => < V, Out' > .
+
+  --- Helper: evaluate an ExpList left-to-right into a ValueList.
+  op evalArgs : ExpList State Out -> Configuration .
+  op <_,_>    : ValueList Out -> Configuration [ctor] .
+   rl evalArgs(nilE, Sigma, Out) => < nilVL, Out > .
+  crl evalArgs(consE(E, EL), Sigma, Out) => < consVL(V, VL), Out2 >
+    if < E, Sigma, Out > => < V, Out1 >
+    /\ evalArgs(EL, Sigma, Out1) => < VL, Out2 > .
+
+  --- Helper: pair an IdList with a ValueList into a State [frame].
+  op buildFrame : IdList ValueList -> State .
+  vars Xb : Id .  vars ILb : IdList .  vars Vb : Value .  vars VLb : ValueList .
+  eq buildFrame(nilI, nilVL) = .State .
+  eq buildFrame(consI(Xb, ILb), consVL(Vb, VLb))
+    = (Xb |-> Vb) & buildFrame(ILb, VLb) .
+  --- mismatched arg count: undefined frame [arity-mismatch surface error
+  --- deferred to cycle 7].
+
+  --- Function call as expression.
+  --- [a] Body returned a value via `return e`  --> use that value.
+ crl < callExp(F, EL), Sigma, Out > => < V, Out2 >
+   if < F, Sigma, Out > => < funcV(IL, Body), Out0 >
+   /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
+   /\ < Body, Sigma & buildFrame(IL, VL), OutA > => < ret(V), Out2 > .
+  --- [b] Body completed normally [no return]  --> result is None.
+ crl < callExp(F, EL), Sigma, Out > => < none, Out2 >
+   if < F, Sigma, Out > => < funcV(IL, Body), Out0 >
+   /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
+   /\ < Body, Sigma & buildFrame(IL, VL), OutA > => < SigmaB, Out2 >
+   .   --- SigmaB : State (subsort match — the no-return case)
+
+  --- callStmt: same as callExp but the value is discarded.
+ crl < callStmt(F, EL), Sigma, Out > => < Sigma, Out2 >
+   if < callExp(F, EL), Sigma, Out > => < V, Out2 > .
 
   --- ----- whole-program kickoff -----------------------------
+  --- The program may end either with a State or with a ret[V] [if
+  --- the program has a top-level return].  Both are Outcome.
  crl < St > => < Sigma, Out >
-   if < St, .State, .Out > => < Sigma, Out > .
+   if < St, .State, .Out > => < Sigma, Out > .       --- normal completion
+ crl < St > => < .State, Out >
+   if < St, .State, .Out > => < ret(V), Out > .      --- top-level return; we
+                                                     --- discard the returned
+                                                     --- value [Python's main
+                                                     --- shouldn't return non-None].
 endm

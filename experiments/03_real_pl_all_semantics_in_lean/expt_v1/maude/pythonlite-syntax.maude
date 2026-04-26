@@ -8,11 +8,11 @@
 --- Cycle 0 — int / bool / id; +, -, *, //, %, unary -; <, <=, >, >=,
 ---           eqq [Python ==], neq [Python !=]; and / or / not;
 ---           pass, := [Python =], print[e], ;, ifelse, while.
---- Cycle 1 — strings: literal "abc", `len(e)`, `+` overloads to concat
+--- Cycle 1 — strings: literal "abc", `len[e]`, `+` overloads to concat
 ---           when both operands are strings.
---- Cycle 2 — lists: literal `[e1, e2, …]`, indexing `xs[i]`, `len(xs)`,
----           `xs.append(e)`.
---- Cycle 3 — for-loops over `range(n)` and over lists.
+--- Cycle 2 — lists: literal `[e1, e2, …]`, indexing `xs[i]`, `len[xs]`,
+---           `xs.append[e]`.
+--- Cycle 3 — for-loops over `range[n]` and over lists.
 --- Cycle 4 — augmented assignment `x += e`, `x -= e`, `x *= e`.
 --- Cycle 5 — `def f[args]: body`, `return e`, calls `f[a1, …]`.
 --- Cycle 6 — closures + recursion [no AST change beyond cycle 5;
@@ -67,7 +67,7 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
   op listLit : ExpList -> Exp [prec 20] .       --- [e1, e2, …, en]
   op _!_     : Exp Exp -> Exp [prec 20] .       --- xs ! i  ==  xs[i]
   op _++_    : Exp Exp -> Exp [prec 33 gather (E e)] . --- list/string concat sugar (parser uses + still;
-                                                       --- this is unused but reserved for future)
+                                                       --- this is unused but reserved for future]
 
   --- Statements [Stmt]
   sort Stmt .
@@ -86,6 +86,28 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PL-ID .
 
   op ifelse(_){_}else{_} : Exp Stmt Stmt -> Stmt [prec 59] .
   op while(_){_}         : Exp Stmt -> Stmt       [prec 59] .
+
+  --- Functions [cycle 5]: def, return, call.
+  --- We add the funcV constructor here [not in pythonlite-values.maude]
+  --- because it carries a Stmt body, and Stmt is defined here.
+  op funcV : IdList Stmt -> Value [ctor] .
+  op truthy_funcV : Value -> Bool .
+  eq truthy(funcV(IL:IdList, S:Stmt)) = true .
+
+  --- def f[p1, p2, ..., pn]: body
+  op def(_,_,_) : Id IdList Stmt -> Stmt [prec 40] .
+
+  --- return e   /   bare 'return' returns None
+  op return(_) : Exp -> Stmt [prec 40] .
+  op return  : -> Stmt .
+
+  --- call[f, args] — function call as expression
+  op callExp : Exp ExpList -> Exp [prec 20] .
+
+  --- bare-call statement [e.g. f[...] used for its side effects, no
+  --- value consumed].  Same evaluation as callExp; we discard the
+  --- result.
+  op callStmt : Exp ExpList -> Stmt [prec 40] .
 
   --- Top-level program is just a Stmt.
   sort Pgm .
