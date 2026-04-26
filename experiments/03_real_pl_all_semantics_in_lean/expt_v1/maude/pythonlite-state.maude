@@ -3,54 +3,51 @@
 --- ============================================================
 --- State and output buffer for pythonlite.
 ---
---- State is a mapping Id -> Int [Python int variables only in v1].
---- Following CS522 IMP convention [`cs522/HW1-Maude/imp/state.maude`]:
+--- State is a mapping Id -> Value [from cycle 1 onward, was Id -> Int
+--- in cycle 0].  Lookup of an unbound variable is `none` --- the same
+--- sentinel CPython would conceptually use before raising NameError;
+--- we surface this as "stuck" rather than raising in v1.
+---
+--- Following CS522 IMP convention (`cs522/HW1-Maude/imp/state.maude`):
 ---
 ---   * `_|->_` is a single binding;
 ---   * `_&_`   is associative-commutative state composition with
 ---             identity `.State`;
----   * `_[_]`  is variable lookup [returns `undefined` when missing,
----             which models Python's NameError at the operational
----             level — `undefined` then propagates through
----             arithmetic via PL-INT's undefined-handling equations];
----   * `_[_/_]` is variable update: existing binding is overwritten,
----              missing binding is added [Python implicit declaration].
+---   * `_(_)`  is variable lookup;
+---   * `_[_/_]` is variable update --- existing binding is overwritten,
+---              missing binding is added (Python's implicit declaration).
 ---
---- Output buffer is a list of integers.  We use `intIO` rather than a
---- raw String list so we can compare output structurally to CPython's
---- numeric output without dealing with Maude's String quirks.
+--- Output buffer is a list of Values [from cycle 1 onward, was list
+--- of Int in cycle 0].  Each `print[e]` appends one Value.  We emit
+--- newlines at extraction time to match CPython's `print(x)` shape.
 --- ============================================================
 
-mod PYTHONLITE-STATE is including PL-INT + PL-ID .
+mod PYTHONLITE-STATE is including PYTHONLITE-VALUES + PL-ID .
   sort State .
-  op _|->_ : Id Int -> State [prec 0] .
+  op _|->_ : Id Value -> State [prec 0] .
   op .State : -> State .
   op _&_   : State State -> State [assoc comm id: .State format (d s s d)] .
 
-  op _(_)    : State Id -> Int     [prec 0] .            --- lookup
-  op _[_/_]  : State Int Id -> State [prec 0] .          --- update
+  op _(_)    : State Id -> Value     [prec 0] .         --- lookup
+  op _[_/_]  : State Value Id -> State [prec 0] .       --- update
 
-  var Sigma : State .  var I I' : Int .  var X : Id .
+  var Sigma : State .  var V V' : Value .  var X : Id .
 
-  --- a "binding to undefined" is the absence of a binding
-  eq X |-> undefined = .State .
+  --- A binding to `none` from an explicit assignment `x = None` is a
+  --- real binding; we do NOT treat it as "absent".  Hence no equation
+  --- `X |-> none = .State`.  Absence is handled by the [owise] lookup.
 
-  --- lookup
-  eq (Sigma & X |-> I)(X) = I .
-  eq Sigma(X) = undefined [owise] .
+  eq (Sigma & X |-> V)(X) = V .
+  eq Sigma(X) = none [owise] .
 
-  --- update: overwrite if present, add otherwise
-  eq (Sigma & X |-> I)[I' / X] = (Sigma & X |-> I') .
-  eq Sigma[I / X] = (Sigma & X |-> I) [owise] .
+  eq (Sigma & X |-> V)[V' / X] = (Sigma & X |-> V') .
+  eq Sigma[V / X] = (Sigma & X |-> V) [owise] .
 endm
 
---- Output buffer = list of integers [one per `print[e]` call].
---- Python's print[] appends a newline; we record only the value
---- printed and reconstruct the newline-separated string at the end
---- when comparing against CPython output.
-mod PYTHONLITE-OUT is including PL-INT .
+--- Output buffer: list of Values, one per `print[e]`.
+mod PYTHONLITE-OUT is including PYTHONLITE-VALUES .
   sort Out .
-  subsort Int < Out .
+  subsort Value < Out .
   op .Out  : -> Out [ctor] .
   op _::_  : Out Out -> Out [ctor assoc id: .Out prec 60] .
 endm

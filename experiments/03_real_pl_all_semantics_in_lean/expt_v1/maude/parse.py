@@ -21,10 +21,23 @@ UNSUPPORTED = "pythonlite v1 does not support: "
 
 def emit_expr(n: ast.AST) -> str:
     if isinstance(n, ast.Constant):
+        if n.value is None:
+            return "none"
         if isinstance(n.value, bool):
             return "true" if n.value else "false"
         if isinstance(n.value, int):
             return f"({n.value})" if n.value < 0 else str(n.value)
+        if isinstance(n.value, str):
+            # Maude string literal: double-quoted, with backslash-escapes for
+            # ", \, newline, tab.  Python's repr() for a str gives single
+            # quotes by default; build it ourselves.
+            esc = (
+                n.value.replace("\\", "\\\\")
+                       .replace("\"", "\\\"")
+                       .replace("\n", "\\n")
+                       .replace("\t", "\\t")
+            )
+            return f"\"{esc}\""
         raise SystemExit(UNSUPPORTED + f"literal {n.value!r}")
     if isinstance(n, ast.Name):
         return f"'{n.id}"
@@ -57,6 +70,12 @@ def emit_expr(n: ast.AST) -> str:
         for p in parts[1:]:
             out = f"({out} {sym} {p})"
         return out
+    if isinstance(n, ast.Call):
+        if isinstance(n.func, ast.Name) and n.func.id == "len":
+            if len(n.args) != 1 or n.keywords:
+                raise SystemExit(UNSUPPORTED + "len() with multiple / keyword args")
+            return f"len({emit_expr(n.args[0])})"
+        raise SystemExit(UNSUPPORTED + f"call to {ast.dump(n.func)}")
     if isinstance(n, ast.Compare):
         if len(n.ops) != 1 or len(n.comparators) != 1:
             raise SystemExit(UNSUPPORTED + "chained comparisons")
@@ -86,6 +105,7 @@ def emit_stmt(n: ast.AST) -> str:
             if len(c.args) != 1 or c.keywords:
                 raise SystemExit(UNSUPPORTED + "print() with multiple / keyword args")
             return f"print({emit_expr(c.args[0])})"
+        # bare expression statement that is a call (e.g. xs.append(x)) handled in cycle 2
         raise SystemExit(UNSUPPORTED + f"call to {ast.dump(c.func)}")
     if isinstance(n, ast.If):
         cond = emit_expr(n.test)

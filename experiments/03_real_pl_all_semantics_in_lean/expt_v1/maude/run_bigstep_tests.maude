@@ -9,6 +9,8 @@
 --- ============================================================
 
 in builtins.maude
+in pl-string.maude
+in pythonlite-values.maude
 in pythonlite-syntax.maude
 in pythonlite-state.maude
 in pythonlite-bigstep.maude

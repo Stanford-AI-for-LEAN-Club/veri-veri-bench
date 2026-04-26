@@ -45,12 +45,35 @@ def main() -> int:
         return 0
     parts = [p.strip() for p in out_str.split("::")]
     for p in parts:
-        # Strip whitespace and convert "(- N)" / "-Int N" to "-N".
-        cleaned = p.replace("(", "").replace(")", "").strip()
-        cleaned = re.sub(r"-Int\s*", "-", cleaned)
-        cleaned = re.sub(r"\s+", "", cleaned)
-        if cleaned:
-            print(cleaned)
+        cleaned = p.strip()
+        if not cleaned:
+            continue
+        # Maude prints values:
+        #   integers     ->  N    or  (- N)  or  -Int N
+        #   booleans     ->  true / false              -> Python  True / False
+        #   strings      ->  "the literal"             -> Python  the literal
+        #   none         ->  none                      -> Python  None
+        # We reformat to match Python's str(value) so byte-comparison
+        # against CPython's stdout works.
+        if cleaned == "true":
+            print("True")
+        elif cleaned == "false":
+            print("False")
+        elif cleaned == "none":
+            print("None")
+        elif cleaned.startswith('"') and cleaned.endswith('"'):
+            inner = cleaned[1:-1]
+            inner = (inner.replace("\\\\", "\\")
+                          .replace('\\"', '"')
+                          .replace("\\n", "\n")
+                          .replace("\\t", "\t"))
+            print(inner)
+        else:
+            # integer-ish:  strip parens, "-Int " prefix, internal whitespace
+            num = cleaned.replace("(", "").replace(")", "")
+            num = re.sub(r"-Int\s*", "-", num)
+            num = re.sub(r"\s+", "", num)
+            print(num)
     return 0
 
 

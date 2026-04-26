@@ -1,6 +1,6 @@
 {
-  "total": 7,
-  "pass":  7,
+  "total": 11,
+  "pass":  11,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -9,6 +9,10 @@
     {"name": "04_factorial", "status": "PASS", "reason": ""},
     {"name": "05_collatz", "status": "PASS", "reason": ""},
     {"name": "06_fizzbuzz", "status": "PASS", "reason": ""},
-    {"name": "07_shortcirc", "status": "PASS", "reason": ""}
+    {"name": "07_shortcirc", "status": "PASS", "reason": ""},
+    {"name": "08_string_concat", "status": "PASS", "reason": ""},
+    {"name": "09_string_len", "status": "PASS", "reason": ""},
+    {"name": "10_string_repeat", "status": "PASS", "reason": ""},
+    {"name": "11_truthy_strings", "status": "PASS", "reason": ""}
   ]
 }

@@ -1,0 +1,41 @@
+--- ============================================================
+--- pythonlite-values.maude
+--- ============================================================
+--- The runtime value sort.  Once we move past int-only programs,
+--- expression evaluation no longer returns `Int` directly --- it
+--- returns `Value`, the disjoint union of every kind of runtime
+--- object pythonlite knows about.
+---
+--- Approach: subsort the existing built-in Maude sorts under Value.
+--- Then a literal `5` is already a Value [via Int < Value]; a literal
+--- `"hi"` is already a Value [via String < Value]; `true` is a Value
+--- [via Bool < Value].  None is the only value that does not have a
+--- natural Maude sort, so we add a new constructor `none`.
+---
+--- For container types [list, dict, tuple, …] we will add reference
+--- constructors in later cycles: `listRef[Addr]`, `tupV[…]`, etc.
+--- A heap module will then map Addr -> ListObject.
+--- ============================================================
+
+mod PYTHONLITE-VALUES is
+  including PL-INT + PL-BOOL + PL-STRING .
+
+  sort Value .
+  subsorts Int Bool String < Value .
+
+  op none : -> Value [ctor] .
+
+  --- "truthy" — Python's bool[v] semantics.
+  --- 0, "", False, None are falsy; everything else is truthy.
+  --- Used to evaluate boolean contexts [if, while, and, or, not] uniformly
+  --- across value kinds, matching CPython's PyObject_IsTrue.
+  op truthy : Value -> Bool .
+  var I : Int .  var B : Bool .  var S : String .
+
+  eq truthy(0)         = false .
+  eq truthy(I)         = true  [owise] .
+  eq truthy(B)         = B .
+  eq truthy("")        = false .
+  eq truthy(S)         = true  [owise] .
+  eq truthy(none)      = false .
+endm

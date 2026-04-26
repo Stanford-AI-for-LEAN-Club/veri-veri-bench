@@ -60,6 +60,8 @@ run_one() {
     local maude_input="/tmp/${const_name}_run.maude"
     cat > "$maude_input" <<EOF
 in $(pwd)/builtins.maude
+in $(pwd)/pl-string.maude
+in $(pwd)/pythonlite-values.maude
 in $(pwd)/pythonlite-syntax.maude
 in $(pwd)/pythonlite-state.maude
 in $(pwd)/pythonlite-bigstep.maude

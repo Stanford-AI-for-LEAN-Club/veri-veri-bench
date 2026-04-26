@@ -1,6 +1,8 @@
-# Experiment 03 — Real PL × All CS522 Semantics in Lean 4
+# Experiment 03 — Python → big-step Maude (push it as far as we can)
 
-**TLDR:** Run a long-horizon Claude Code job that writes the formal semantics of a *real* (non-toy) programming language in Lean 4 using **every** CS522 semantic framework (big-step, small-step, denotational, MSOS, RSEC, CHAM, K/rewriting, λ-calculus / type system), then verify the output against an independently-computed ground truth. This is the bridge between Experiment 02 (CS522 IMP / IMP++ in Lean) and the project's end goal — a fully formal, kernel-checked semantics for a real language.
+**TLDR:** **Refocused 2026-04-26**. One target language (real Python), one CS522 framework (big-step / Kahn semantics), one implementation language (Maude). Push the Python subset as wide as possible with iterative add-feature → re-run-diff-harness cycles. Brando's directive: *"let's only try that all of python into big step and let's have it working in maude"*. Other CS522 frameworks (small-step, denotational, MSOS, RSEC, CHAM, K, λ) are **deferred** until the big-step v1 supports a meaningful Python subset end-to-end.
+
+The previous "do all 8 frameworks at once" framing in earlier commits is superseded; that plan is preserved in `expt_v1/cc.md` as the historical record. The active plan is in `expt_v1/maude/` and grows feature-by-feature with each commit.
 
 ---
 
@@ -62,20 +64,29 @@ The runnable plan lives in `expt_v1/prompt.md`. High-level shape:
 - **Compute:** This is mostly a long-horizon Claude Code run. Brando's note: *"I have a lot of credits to run Claude or Claude 5.5"*. Budget: target ≤ 72 h of agent time per framework × language pair before falling back to a smaller scope. No GPU.
 - **Credentials:** W&B (`~/keys/brandos_wandb_key.txt`).
 
-## 5. Status
+## 5. Status — Python feature support (big-step Maude)
 
-| Step                                         | Status      | Notes |
+Each **cycle** is one new Python feature, end-to-end (syntax → parser → Maude rules → at least one new test in `expt_v1/maude/tests/` → diff-harness PASS).
+
+| Cycle | Feature added                              | Status      | Diff-harness pass rate after cycle |
+|-------|--------------------------------------------|-------------|-----------------------------------:|
+| 0     | int, bool, +, -, *, //, %, comparisons, `and`/`or`/`not`, assign, `print`, `if`/`else`, `while` | Done | 7 / 7 |
+| 1     | strings (literals, concat with `+`, `len`)  | Done        | (see latest `results_summary_*.md`) |
+| 2     | lists (literal, indexing, `len`, `append`) | Done        | " |
+| 3     | for-loop over `range(n)` / over list       | Done        | " |
+| 4     | augmented assignment (`+=`, `-=`, `*=`)    | Done        | " |
+| 5     | functions (`def`, `return`, positional args) | Done      | " |
+| 6     | closures + recursion                        | Done        | " |
+| 7     | exceptions (`raise`, `try` / `except`)     | Done        | " |
+| 8     | tuples + multiple assignment                | Done        | " |
+| 9+    | classes / dicts / generators                | TODO (v2)   | — |
+
+(Status reflects the **end of this PR's commit chain**; per-cycle commit hashes are in `expt_v1/maude/results/cycles_log.md`.)
+
+| External                                     | Status      | Notes |
 |----------------------------------------------|-------------|-------|
-| Experiment folder + plan                     | Done        | this PR |
-| `expt_v1/prompt.md` canonical prompt         | Done        | runnable as-is |
-| `expt_v1/language_candidates.md`             | Done        | recommendation: `pythonlite` |
-| `expt_v1/frameworks_matrix.md`               | Done        | 8 CS522 frameworks listed |
-| `expt_v1/verification_spec.md`               | Done        | three-layer protocol (diff-test, equiv-thm, textbook) |
-| Stepan sign-off on verification protocol     | TODO        | depends on PR review |
-| Pick target language (default vs alt)        | TODO        | needs Brando + Stepan call |
-| Long Claude Code run on `expt_v1`            | Blocked     | blocked on the two TODOs above |
-| `expt_v1/results/results_summary_<TS>.md`    | TODO        | only after the run |
-| W&B Report                                   | TODO        | only after the run |
+| Stepan sign-off on `verification_spec.md`    | Pending     | requested in PR #7 thread |
+| Stepan sign-off on big-step rule shapes      | Pending     | Stepan must be added as a repo collaborator first (Brando) |
 
 ## 6. Why this experiment matters (project context)
 
