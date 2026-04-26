@@ -89,18 +89,18 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PYTHONLITE-STATE + PL-ID 
 
   --- Functions [cycle 5/6]: def, return, call.
   --- We add the funcV constructor here [not in pythonlite-values.maude]
-  --- because it carries a Stmt body and (cycle 6) a captured State,
+  --- because it carries a Stmt body and [cycle 6] a captured State,
   --- both of which are defined here / in pythonlite-state.maude.
   ---
-  --- Cycle 5 used a 2-arg funcV(IL, body) with dynamic scoping at call
-  --- sites.  Cycle 6 promotes funcV to 3 arguments — funcV(IL, body,
-  --- captured) — capturing the def-site environment so closures
+  --- Cycle 5 used a 2-arg funcV[IL, body] with dynamic scoping at call
+  --- sites.  Cycle 6 promotes funcV to 3 arguments — funcV[IL, body,
+  --- captured] — capturing the def-site environment so closures
   --- functions referring to outer locals after the outer scope has
   --- exited work correctly.  Top-level functions and recursion work
-  --- via outer-scope merging at call time (see pythonlite-bigstep.maude
-  --- callExp rules).
+  --- via outer-scope merging at call time [see pythonlite-bigstep.maude
+  --- callExp rules].
   op funcV : IdList Stmt State -> Value [ctor] .
-  --- funcV is always truthy in Python (functions are truthy objects).
+  --- funcV is always truthy in Python [functions are truthy objects].
   vars ILt : IdList .  vars St_t : Stmt .  vars Capt : State .
   eq truthy(funcV(ILt, St_t, Capt)) = true .
 
@@ -118,6 +118,17 @@ mod PYTHONLITE-SYNTAX is including PYTHONLITE-VALUES + PYTHONLITE-STATE + PL-ID 
   --- value consumed].  Same evaluation as callExp; we discard the
   --- result.
   op callStmt : Exp ExpList -> Stmt [prec 40] .
+
+  --- Exceptions [cycle 7]:
+  ---   raise e         -> evaluate e, propagate as raised[V]
+  ---   try { body }
+  ---   except as x { handler }
+  --- Pythonlite v1 has no exception class hierarchy — `except` always
+  --- catches anything raised; the caught value is bound to `x` for the
+  --- handler's lifetime.  A bare `raise` [no expression] is unsupported
+  --- in v1 [no current-exception slot].
+  op raise(_) : Exp -> Stmt [prec 40] .
+  op tryexcept(_,_,_) : Stmt Id Stmt -> Stmt [prec 59] .
 
   --- Top-level program is just a Stmt.
   sort Pgm .

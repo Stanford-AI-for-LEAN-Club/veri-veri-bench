@@ -84,6 +84,13 @@ def emit_expr(n: ast.AST) -> str:
             if len(n.args) != 1 or n.keywords:
                 raise SystemExit(UNSUPPORTED + "len() with multiple / keyword args")
             return f"len({emit_expr(n.args[0])})"
+        # Exception(x) is a no-op pass-through in pythonlite v1; we don't
+        # have a class hierarchy yet, but accepting it lets test programs
+        # be valid Python (raise Exception("...")).
+        if isinstance(n.func, ast.Name) and n.func.id == "Exception":
+            if len(n.args) != 1 or n.keywords:
+                raise SystemExit(UNSUPPORTED + "Exception() with multiple / keyword args")
+            return emit_expr(n.args[0])
         # General function call: callExp(f, args)
         if n.keywords:
             raise SystemExit(UNSUPPORTED + "call with keyword args")
@@ -239,6 +246,28 @@ def emit_stmt(n: ast.AST) -> str:
         if n.value is None:
             return "return"
         return f"return({emit_expr(n.value)})"
+    if isinstance(n, ast.Raise):
+        if n.cause is not None:
+            raise SystemExit(UNSUPPORTED + "raise ... from cause")
+        if n.exc is None:
+            raise SystemExit(UNSUPPORTED + "bare raise")
+        return f"raise({emit_expr(n.exc)})"
+    if isinstance(n, ast.Try):
+        if n.finalbody:
+            raise SystemExit(UNSUPPORTED + "try ... finally")
+        if n.orelse:
+            raise SystemExit(UNSUPPORTED + "try ... else")
+        if len(n.handlers) != 1:
+            raise SystemExit(UNSUPPORTED + "try with multiple except clauses")
+        h = n.handlers[0]
+        if h.type is not None:
+            # we ignore the exception type (cycle 7 catches all); cycle 7.5 will
+            # add an exception class hierarchy + isinstance dispatch
+            pass
+        var_id = h.name if h.name else fresh("exc")
+        body = emit_block(n.body)
+        handler = emit_block(h.body)
+        return f"tryexcept(({body}), '{var_id}, ({handler}))"
     if isinstance(n, ast.Pass):
         return "pass"
     raise SystemExit(UNSUPPORTED + f"stmt node {type(n).__name__}")

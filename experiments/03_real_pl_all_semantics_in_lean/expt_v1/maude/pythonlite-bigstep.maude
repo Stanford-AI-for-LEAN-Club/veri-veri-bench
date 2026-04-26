@@ -28,7 +28,8 @@ mod PYTHONLITE-CONFIGURATIONS-BIGSTEP is
   --- State automatically lift via subsort.
   sort Outcome .
   subsort State < Outcome .
-  op ret : Value -> Outcome [ctor] .
+  op ret    : Value -> Outcome [ctor] .   --- early return (cycle 5)
+  op raised : Value -> Outcome [ctor] .   --- raised exception (cycle 7)
 
   sort Configuration .
   --- expression configurations [Value-result]
@@ -282,6 +283,10 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
  crl < St1 ; St2, Sigma, Out > => < ret(V), Out1 >
    if < St1, Sigma, Out > => < ret(V), Out1 > .
 
+  --- Exception in S1 -> short-circuit, propagate raised upward.
+ crl < St1 ; St2, Sigma, Out > => < raised(V), Out1 >
+   if < St1, Sigma, Out > => < raised(V), Out1 > .
+
   --- if uses truthy[_] to match Python's "any value can be a condition"
  crl < ifelse(E){ St1 }else{ St2 }, Sigma, Out > => < Outc1, Out2 >
    if < E,  Sigma, Out  > => < V, Out1 >
@@ -358,6 +363,45 @@ mod PYTHONLITE-SEMANTICS-BIGSTEP is
   --- callStmt: same as callExp but the value is discarded.
  crl < callStmt(F, EL), Sigma, Out > => < Sigma, Out2 >
    if < callExp(F, EL), Sigma, Out > => < V, Out2 > .
+
+  --- ----- exceptions: raise / try-except ----------------
+  --- raise e: evaluate e, propagate as raised[V].
+ crl < raise(E), Sigma, Out > => < raised(V), Out' >
+   if < E, Sigma, Out > => < V, Out' > .
+
+  --- try { body } except as x { handler }
+  --- [a] Body completed normally -> tryexcept yields the same outcome
+  ---     as body, no handler invocation.
+ crl < tryexcept(Body, X, St1), Sigma, Out > => < SigmaB, Out2 >
+   if < Body, Sigma, Out > => < SigmaB, Out2 > .
+  --- [b] Body returned -> propagate ret without invoking handler.
+ crl < tryexcept(Body, X, St1), Sigma, Out > => < ret(V), Out2 >
+   if < Body, Sigma, Out > => < ret(V), Out2 > .
+  --- [c] Body raised -> bind exception to x, run handler in updated state.
+ crl < tryexcept(Body, X, St1), Sigma, Out > => < Outc1, Out2 >
+   if < Body, Sigma, Out > => < raised(V), Out1 >
+   /\ < St1, Sigma[V / X], Out1 > => < Outc1, Out2 > .
+
+  --- Function-call boundary: an *uncaught* exception in the body
+  --- propagates out of the call, just like ret does [but as raised].
+ crl < callExp(F, EL), Sigma, Out > => < raised(V), Out2 >
+   if < F, Sigma, Out > => < funcV(IL, Body, Cap), Out0 >
+   /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
+   /\ < Body, Sigma & Cap & buildFrame(IL, VL), OutA > => < raised(V), Out2 > .
+
+  --- callExp returns the exception value through the result; the
+  --- caller's seq / tryexcept catches it.  But callExp -> Value is the
+  --- expression layer; a raised exception in an expression context
+  --- needs to propagate up through expression evaluation.  The
+  --- expression `callExp[...]` rewrites to a Value; if the call raises,
+  --- there is no Value, so the call is "stuck" at the expression
+  --- level — the *parent statement* must therefore look for the
+  --- raised outcome from the call itself.  We surface this with a
+  --- second callStmt rule:
+ crl < callStmt(F, EL), Sigma, Out > => < raised(V), Out2 >
+   if < F, Sigma, Out > => < funcV(IL, Body, Cap), Out0 >
+   /\ evalArgs(EL, Sigma, Out0) => < VL, OutA >
+   /\ < Body, Sigma & Cap & buildFrame(IL, VL), OutA > => < raised(V), Out2 > .
 
   --- ----- whole-program kickoff -----------------------------
   --- The program may end either with a State or with a ret[V] [if

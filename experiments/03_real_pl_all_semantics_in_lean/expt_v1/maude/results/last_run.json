@@ -1,6 +1,6 @@
 {
-  "total": 25,
-  "pass":  25,
+  "total": 27,
+  "pass":  27,
   "fail":  0,
   "per_test": [
     {"name": "01_smoke", "status": "PASS", "reason": ""},
@@ -27,6 +27,8 @@
     {"name": "22_function_void", "status": "PASS", "reason": ""},
     {"name": "23_recursion_factorial", "status": "PASS", "reason": ""},
     {"name": "24_closure_adder", "status": "PASS", "reason": ""},
-    {"name": "25_higher_order", "status": "PASS", "reason": ""}
+    {"name": "25_higher_order", "status": "PASS", "reason": ""},
+    {"name": "26_raise_catch", "status": "PASS", "reason": ""},
+    {"name": "27_raise_propagation", "status": "PASS", "reason": ""}
   ]
 }
