@@ -68,4 +68,4 @@ lake env lean --version    # verify pinned Lean toolchain via Lake
 ## Related projects
 
 - `~/cs522` — Brando's completed CS522 Maude homework submissions (HW1–HW4). This repo's `cs522/` folder holds the course PDF + HW specs; the ported Lean versions live under `Imp/`.
-- [Lean Club]([https://github.com/StanfordLeanClub]) — the Stanford group driving this project and VariBench.
+- [Lean Club](https://github.com/StanfordLeanClub) — the Stanford group driving this project and VariBench.
